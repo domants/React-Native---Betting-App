@@ -1,14 +1,18 @@
-import { StyleSheet, View, Alert } from "react-native";
+import { View, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
+import { styled } from "nativewind";
 
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Theme } from "@/constants/Colors";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+
+const StyledView = styled(View);
+const StyledSafeAreaView = styled(SafeAreaView);
 
 interface FinancialCardProps {
   title: string;
@@ -21,12 +25,12 @@ function FinancialCard({ title, value, icon }: FinancialCardProps) {
   const iconColor = Colors[colorScheme ?? "light"].icon;
 
   return (
-    <ThemedView style={styles.card}>
-      <View style={styles.cardHeader}>
+    <ThemedView className="w-[48%] p-3 rounded-xl bg-white/10 border border-white/20">
+      <StyledView className="flex-row items-center gap-2 mb-2">
         <MaterialIcons name={icon} size={24} color={iconColor} />
-        <ThemedText style={styles.cardTitle}>{title}</ThemedText>
-      </View>
-      <ThemedText style={styles.cardValue}>₱ {value}</ThemedText>
+        <ThemedText className="text-sm opacity-70">{title}</ThemedText>
+      </StyledView>
+      <ThemedText className="text-lg font-bold">₱ {value}</ThemedText>
     </ThemedView>
   );
 }
@@ -34,16 +38,23 @@ function FinancialCard({ title, value, icon }: FinancialCardProps) {
 interface GameTabProps {
   title: string;
   isActive?: boolean;
+  isDisabled?: boolean;
   onPress: () => void;
 }
 
-function GameTab({ title, isActive, onPress }: GameTabProps) {
+function GameTab({ title, isActive, isDisabled, onPress }: GameTabProps) {
   return (
     <ThemedView
-      style={[styles.tab, isActive && styles.activeTab]}
-      onTouchEnd={onPress}
+      className={`py-2 px-4 rounded-full border ${
+        isActive ? "bg-[#6200ee] border-[#6200ee]" : "border-white/20"
+      } ${isDisabled ? "opacity-50" : ""}`}
+      onTouchEnd={!isDisabled ? onPress : undefined}
     >
-      <ThemedText style={[styles.tabText, isActive && styles.activeTabText]}>
+      <ThemedText
+        className={`text-base ${isActive ? "text-white" : ""} ${
+          isDisabled ? "opacity-50" : ""
+        }`}
+      >
         {title}
       </ThemedText>
     </ThemedView>
@@ -58,37 +69,70 @@ interface GameItemProps {
 
 function GameItem({ title, time, onAddBet }: GameItemProps) {
   return (
-    <View style={styles.gameItem}>
-      <View style={styles.gameInfo}>
-        <ThemedText style={styles.gameTitle}>{title}</ThemedText>
-        <ThemedText style={styles.gameTime}>{time}</ThemedText>
-      </View>
-      <ThemedView style={styles.addBetButton} onTouchEnd={onAddBet}>
-        <ThemedText style={styles.addBetText}>Add Bet</ThemedText>
+    <StyledView className="flex-row justify-between items-center py-3 border-b border-white/20">
+      <StyledView className="flex-1">
+        <ThemedText className="text-base font-bold mb-1">{title}</ThemedText>
+        <ThemedText className="text-sm opacity-70">{time}</ThemedText>
+      </StyledView>
+      <ThemedView
+        className="py-2 px-4 rounded-full bg-[#6200ee]"
+        onTouchEnd={onAddBet}
+      >
+        <ThemedText className="text-sm text-white font-bold">
+          Add Bet
+        </ThemedText>
       </ThemedView>
-    </View>
+    </StyledView>
   );
 }
 
+function getCurrentPhTime() {
+  return new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" });
+}
+
+function isEventAvailable(eventTime: string): boolean {
+  const currentDate = new Date(getCurrentPhTime());
+  const [hour, modifier] = eventTime.split(" ");
+  let [eventHour] = hour.split(":").map(Number);
+
+  if (modifier === "PM" && eventHour < 12) eventHour += 12;
+  if (modifier === "AM" && eventHour === 12) eventHour = 0;
+
+  eventHour -= 1;
+
+  const currentHour = currentDate.getHours();
+
+  return currentHour < eventHour;
+}
+
 const GAME_DATA = {
-  "2PM Events": [
-    { title: "2PM SWERTRES", time: "01:45 PM" },
-    { title: "2PM LAST TWO", time: "01:45 PM" },
-  ],
-  "5PM Events": [
-    { title: "5PM SWERTRES", time: "04:45 PM" },
-    { title: "5PM LAST TWO", time: "04:45 PM" },
-  ],
-  "9PM Events": [
-    { title: "9PM SWERTRES", time: "08:45 PM" },
-    { title: "9PM LAST TWO", time: "08:45 PM" },
-  ],
+  "11AM Events": {
+    cutoffTime: "10:00 AM",
+    games: [
+      { title: "11AM SWERTRES", time: "10:45 AM" },
+      { title: "11AM LAST TWO", time: "10:45 AM" },
+    ],
+  },
+  "5PM Events": {
+    cutoffTime: "4:00 PM",
+    games: [
+      { title: "5PM SWERTRES", time: "04:45 PM" },
+      { title: "5PM LAST TWO", time: "04:45 PM" },
+    ],
+  },
+  "9PM Events": {
+    cutoffTime: "8:00 PM",
+    games: [
+      { title: "9PM SWERTRES", time: "08:45 PM" },
+      { title: "9PM LAST TWO", time: "08:45 PM" },
+    ],
+  },
 };
 
 export default function DashboardScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const colorScheme = useColorScheme() as Theme;
-  const [activeTab, setActiveTab] = useState("2PM Events");
+  const [activeTab, setActiveTab] = useState("11AM Events");
   const date = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -97,7 +141,20 @@ export default function DashboardScreen() {
   });
 
   const handleTabPress = (tabName: string) => {
+    const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
+    if (!isEventAvailable(eventData.cutoffTime)) {
+      Alert.alert(
+        "Event Unavailable",
+        "This event's betting period has ended. Please wait for the next schedule."
+      );
+      return;
+    }
     setActiveTab(tabName);
+  };
+
+  const isTabDisabled = (tabName: string) => {
+    const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
+    return !isEventAvailable(eventData.cutoffTime);
   };
 
   const handleAddBet = (gameTitle: string) => {
@@ -123,21 +180,21 @@ export default function DashboardScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <ThemedText style={styles.welcomeText}>
-            Welcome {username || "testteller002"}!
+    <StyledSafeAreaView className="flex-1 p-4">
+      <StyledView className="flex-row justify-between items-start mb-5">
+        <StyledView>
+          <ThemedText className="text-2xl font-bold mb-1">
+            Welcome {username || "Guest"}!
           </ThemedText>
-          <ThemedText style={styles.dateText}>{date}</ThemedText>
-        </View>
-        <View style={styles.onlineStatus}>
-          <View style={styles.onlineDot} />
-          <ThemedText style={styles.onlineText}>Online</ThemedText>
-        </View>
-      </View>
+          <ThemedText className="text-sm opacity-70">{date}</ThemedText>
+        </StyledView>
+        <StyledView className="flex-row items-center">
+          <StyledView className="w-2 h-2 rounded-full bg-[#4CAF50] mr-1.5" />
+          <ThemedText className="text-sm text-[#4CAF50]">Online</ThemedText>
+        </StyledView>
+      </StyledView>
 
-      <View style={styles.cardsContainer}>
+      <StyledView className="flex-row flex-wrap gap-3 mb-6">
         <FinancialCard title="Gross" value="0.00" icon="account-balance" />
         <FinancialCard title="Net Income" value="0.00" icon="payments" />
         <FinancialCard title="Winnings" value="0.00" icon="emoji-events" />
@@ -147,31 +204,34 @@ export default function DashboardScreen() {
           icon="confirmation-number"
         />
         <FinancialCard title="Remit to Upline" value="0.00" icon="upload" />
-        <View style={styles.syncCard}>
+        <StyledView className="w-[48%] flex-row items-center">
           <FinancialCard title="Unsynced Data" value="0" icon="sync" />
           <MaterialIcons
             name="refresh"
             size={24}
             color={Colors[colorScheme ?? "light"].icon}
-            style={styles.refreshIcon}
+            className="absolute right-3 top-1/2 -translate-y-3"
           />
-        </View>
-      </View>
+        </StyledView>
+      </StyledView>
 
-      <ThemedView style={styles.gamesSection}>
-        <ThemedText style={styles.sectionTitle}>Today's Games</ThemedText>
-        <View style={styles.tabsContainer}>
+      <ThemedView className="flex-1 p-4 rounded-xl bg-white/10 border border-white/20 mb-auto">
+        <ThemedText className="text-lg font-bold mb-3.5">
+          Today's Games
+        </ThemedText>
+        <StyledView className="flex-row gap-3 mb-2.5">
           {Object.keys(GAME_DATA).map((tabName) => (
             <GameTab
               key={tabName}
               title={tabName}
               isActive={activeTab === tabName}
+              isDisabled={isTabDisabled(tabName)}
               onPress={() => handleTabPress(tabName)}
             />
           ))}
-        </View>
-        <View style={styles.gamesList}>
-          {GAME_DATA[activeTab as keyof typeof GAME_DATA].map((game) => (
+        </StyledView>
+        <StyledView className="gap-3">
+          {GAME_DATA[activeTab as keyof typeof GAME_DATA].games.map((game) => (
             <GameItem
               key={game.title}
               title={game.title}
@@ -179,192 +239,24 @@ export default function DashboardScreen() {
               onAddBet={() => handleAddBet(game.title)}
             />
           ))}
-        </View>
+        </StyledView>
       </ThemedView>
 
-      <View style={styles.footer}>
-        <View style={styles.footerContent}>
-          <ThemedText style={styles.totalBet}>Total Bet: ₱ 0.00</ThemedText>
-          <ThemedView style={styles.submitButton} onTouchEnd={handleSubmitBet}>
-            <ThemedText style={styles.submitButtonText}>Submit Bet</ThemedText>
+      <StyledView className="mt-auto pt-4 pb-6 border-t border-white/20">
+        <StyledView className="px-2 pb-0.5">
+          <ThemedText className="text-lg font-bold text-right mb-4">
+            Total Bet: ₱₱ 0.00
+          </ThemedText>
+          <ThemedView
+            className="p-4 rounded-xl bg-[#6200ee] items-center w-full"
+            onTouchEnd={handleSubmitBet}
+          >
+            <ThemedText className="text-base font-bold text-white">
+              Submit Bet
+            </ThemedText>
           </ThemedView>
-        </View>
-      </View>
-    </SafeAreaView>
+        </StyledView>
+      </StyledView>
+    </StyledSafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-  },
-  welcomeText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  dateText: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  onlineStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  onlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#4CAF50",
-    marginRight: 6,
-  },
-  onlineText: {
-    fontSize: 14,
-    color: "#4CAF50",
-  },
-  cardsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 24,
-  },
-  card: {
-    width: "48%",
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "#ffffff10",
-    borderWidth: 1,
-    borderColor: "#ffffff20",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  cardValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  syncCard: {
-    width: "48%",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  refreshIcon: {
-    position: "absolute",
-    right: 12,
-    top: "50%",
-    transform: [{ translateY: -12 }],
-  },
-  gamesSection: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: "#ffffff10",
-    borderWidth: 1,
-    borderColor: "#ffffff20",
-    marginBottom: "auto",
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 14,
-  },
-  tabsContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 10,
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ffffff20",
-  },
-  activeTab: {
-    backgroundColor: "#6200ee",
-    borderColor: "#6200ee",
-  },
-  tabText: {
-    fontSize: 16,
-  },
-  activeTabText: {
-    color: "#ffffff",
-  },
-  gamesList: {
-    gap: 12,
-  },
-  gameItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ffffff20",
-  },
-  gameInfo: {
-    flex: 1,
-  },
-  gameTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  gameTime: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  addBetButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: "#6200ee",
-  },
-  addBetText: {
-    fontSize: 14,
-    color: "#ffffff",
-    fontWeight: "bold",
-  },
-  footer: {
-    marginTop: "auto",
-    paddingTop: 16,
-    paddingBottom: 24,
-    borderTopWidth: 1,
-    borderTopColor: "#ffffff20",
-  },
-  footerContent: {
-    paddingHorizontal: 8,
-    paddingBottom: 1,
-  },
-  totalBet: {
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "right",
-    marginBottom: 16,
-  },
-  submitButton: {
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: "#6200ee",
-    alignItems: "center",
-    width: "100%",
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#ffffff",
-  },
-});
