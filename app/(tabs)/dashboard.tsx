@@ -1,4 +1,4 @@
-import { View, Alert } from "react-native";
+import { View, Alert, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useState } from "react";
@@ -38,23 +38,18 @@ function FinancialCard({ title, value, icon }: FinancialCardProps) {
 interface GameTabProps {
   title: string;
   isActive?: boolean;
-  isDisabled?: boolean;
   onPress: () => void;
 }
 
-function GameTab({ title, isActive, isDisabled, onPress }: GameTabProps) {
+function GameTab({ title, isActive, onPress }: GameTabProps) {
   return (
     <ThemedView
       className={`py-2 px-4 rounded-full border ${
         isActive ? "bg-[#6200ee] border-[#6200ee]" : "border-white/20"
-      } ${isDisabled ? "opacity-50" : ""}`}
-      onTouchEnd={!isDisabled ? onPress : undefined}
+      }`}
+      onTouchEnd={onPress}
     >
-      <ThemedText
-        className={`text-base ${isActive ? "text-white" : ""} ${
-          isDisabled ? "opacity-50" : ""
-        }`}
-      >
+      <ThemedText className={`text-base ${isActive ? "text-white" : ""}`}>
         {title}
       </ThemedText>
     </ThemedView>
@@ -129,6 +124,89 @@ const GAME_DATA = {
   },
 };
 
+interface AlertDialogProps {
+  isVisible: boolean;
+  title: string;
+  message: string;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+  confirmText?: string;
+  cancelText?: string;
+  type?: "success" | "warning" | "error" | "info";
+}
+
+function AlertDialog({
+  isVisible,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  type = "info",
+}: AlertDialogProps) {
+  const getColorByType = () => {
+    switch (type) {
+      case "success":
+        return "bg-green-600";
+      case "warning":
+        return "bg-yellow-600";
+      case "error":
+        return "bg-red-600";
+      default:
+        return "bg-[#6200ee]";
+    }
+  };
+
+  return (
+    <Modal
+      transparent
+      visible={isVisible}
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <StyledView className="flex-1 justify-center items-center bg-black/80">
+        <ThemedView className="w-[90%] max-w-sm rounded-2xl bg-black border border-white/20">
+          <StyledView className={`p-4 rounded-t-2xl ${getColorByType()}`}>
+            <ThemedText className="text-lg font-bold text-white">
+              {title}
+            </ThemedText>
+          </StyledView>
+
+          <StyledView className="p-4">
+            <ThemedText className="text-base mb-4 text-white">
+              {message}
+            </ThemedText>
+
+            <StyledView className="flex-row justify-end gap-3">
+              {onCancel && (
+                <ThemedView
+                  className="py-2 px-4 rounded-full bg-orange-300"
+                  onTouchEnd={onCancel}
+                >
+                  <ThemedText className="text-sm font-bold text-black">
+                    {cancelText}
+                  </ThemedText>
+                </ThemedView>
+              )}
+              {onConfirm && (
+                <ThemedView
+                  className={`py-2 px-4 rounded-full ${getColorByType()}`}
+                  onTouchEnd={onConfirm}
+                >
+                  <ThemedText className="text-sm font-bold text-white">
+                    {confirmText}
+                  </ThemedText>
+                </ThemedView>
+              )}
+            </StyledView>
+          </StyledView>
+        </ThemedView>
+      </StyledView>
+    </Modal>
+  );
+}
+
 export default function DashboardScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const colorScheme = useColorScheme() as Theme;
@@ -140,47 +218,107 @@ export default function DashboardScreen() {
     day: "numeric",
   });
 
+  const [alertConfig, setAlertConfig] = useState<{
+    isVisible: boolean;
+    title: string;
+    message: string;
+    type?: "success" | "warning" | "error" | "info";
+    onConfirm?: () => void;
+    onCancel?: () => void;
+    confirmText?: string;
+    cancelText?: string;
+  }>({
+    isVisible: false,
+    title: "",
+    message: "",
+  });
+
+  const [isSynced, setIsSynced] = useState(false);
+
   const handleTabPress = (tabName: string) => {
     const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
     if (!isEventAvailable(eventData.cutoffTime)) {
-      Alert.alert(
-        "Event Unavailable",
-        "This event's betting period has ended. Please wait for the next schedule."
-      );
+      setAlertConfig({
+        isVisible: true,
+        title: "Event Unavailable",
+        message:
+          "This event's betting period has ended. Please wait for the next schedule.",
+        type: "warning",
+        onConfirm: () =>
+          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+        confirmText: "OK",
+      });
       return;
     }
     setActiveTab(tabName);
   };
 
-  const isTabDisabled = (tabName: string) => {
-    const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
-    return !isEventAvailable(eventData.cutoffTime);
-  };
-
   const handleAddBet = (gameTitle: string) => {
-    Alert.alert("Add Bet", `Adding bet for ${gameTitle}`);
+    const eventData = GAME_DATA[activeTab as keyof typeof GAME_DATA];
+    if (!isEventAvailable(eventData.cutoffTime)) {
+      setAlertConfig({
+        isVisible: true,
+        title: "Betting Closed",
+        message:
+          "This event's betting period has ended. Please wait for the next schedule.",
+        type: "warning",
+        onConfirm: () =>
+          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+        confirmText: "OK",
+      });
+      return;
+    }
+    setAlertConfig({
+      isVisible: true,
+      title: "Add Bet",
+      message: `Adding bet for ${gameTitle}`,
+      type: "info",
+      onConfirm: () =>
+        setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+      confirmText: "OK",
+    });
   };
 
   const handleSubmitBet = () => {
-    Alert.alert(
-      "Submit Bet",
-      "Are you sure you want to submit your bets?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Submit",
-          onPress: () => Alert.alert("Success", "Bets submitted successfully!"),
-        },
-      ],
-      { cancelable: false }
-    );
+    setAlertConfig({
+      isVisible: true,
+      title: "Submit Bet",
+      message: "Are you sure you want to submit your bets?",
+      type: "info",
+      onConfirm: () => {
+        setAlertConfig({
+          isVisible: true,
+          title: "Success",
+          message: "Bets submitted successfully!",
+          type: "success",
+          onConfirm: () =>
+            setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+          confirmText: "OK",
+        });
+      },
+      onCancel: () => setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+      confirmText: "Submit",
+      cancelText: "Cancel",
+    });
+  };
+
+  const handleSync = () => {
+    setAlertConfig({
+      isVisible: true,
+      title: "Success",
+      message: "Data Synced!",
+      type: "success",
+      onConfirm: () => {
+        setIsSynced(true);
+        setAlertConfig((prev) => ({ ...prev, isVisible: false }));
+      },
+      confirmText: "OK",
+    });
   };
 
   return (
     <StyledSafeAreaView className="flex-1 p-4">
+      <AlertDialog {...alertConfig} />
       <StyledView className="flex-row justify-between items-start mb-5">
         <StyledView>
           <ThemedText className="text-2xl font-bold mb-1">
@@ -205,12 +343,17 @@ export default function DashboardScreen() {
         />
         <FinancialCard title="Remit to Upline" value="0.00" icon="upload" />
         <StyledView className="w-[48%] flex-row items-center">
-          <FinancialCard title="Unsynced Data" value="0" icon="sync" />
+          <FinancialCard
+            title={isSynced ? "Synced Data" : "Unsynced Data"}
+            value="0"
+            icon="sync"
+          />
           <MaterialIcons
             name="refresh"
             size={24}
             color={Colors[colorScheme ?? "light"].icon}
             className="absolute right-3 top-1/2 -translate-y-3"
+            onPress={handleSync}
           />
         </StyledView>
       </StyledView>
@@ -219,13 +362,12 @@ export default function DashboardScreen() {
         <ThemedText className="text-lg font-bold mb-3.5">
           Today's Games
         </ThemedText>
-        <StyledView className="flex-row gap-3 mb-2.5">
+        <StyledView className="flex-row justify-between mb-2.5">
           {Object.keys(GAME_DATA).map((tabName) => (
             <GameTab
               key={tabName}
               title={tabName}
               isActive={activeTab === tabName}
-              isDisabled={isTabDisabled(tabName)}
               onPress={() => handleTabPress(tabName)}
             />
           ))}
@@ -245,7 +387,7 @@ export default function DashboardScreen() {
       <StyledView className="mt-auto pt-4 pb-6 border-t border-white/20">
         <StyledView className="px-2 pb-0.5">
           <ThemedText className="text-lg font-bold text-right mb-4">
-            Total Bet: ₱₱ 0.00
+            Total Bet: ₱0.00
           </ThemedText>
           <ThemedView
             className="p-4 rounded-xl bg-[#6200ee] items-center w-full"

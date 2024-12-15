@@ -71,4 +71,13 @@ declare module "react-native" {
 
   export const TextInput: ComponentType<TextInputProps>;
   export const TouchableOpacity: ComponentType<ViewProps>;
+
+  export interface ModalProps extends ViewProps {
+    animationType?: "none" | "slide" | "fade";
+    transparent?: boolean;
+    visible?: boolean;
+    onRequestClose?: () => void;
+  }
+
+  export const Modal: ComponentType<ModalProps>;
 }
