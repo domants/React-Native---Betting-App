@@ -106,11 +106,16 @@ export default function NewBetScreen() {
     });
   };
 
+  const handleBack = () => {
+    router.setParams({ totalBetValue: totalAmount.toString() });
+    router.back();
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
         <StyledView className="flex-row items-center p-4 border-b border-gray-200">
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={handleBack}>
             <MaterialIcons name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
           <ThemedText className="ml-4 text-lg font-bold">
@@ -189,10 +194,7 @@ export default function NewBetScreen() {
 
           <TouchableOpacity
             className="w-full py-4 bg-[#6F13F5] rounded-xl items-center"
-            onPress={() => {
-              router.setParams({ totalBetValue: totalAmount.toString() });
-              router.back();
-            }}
+            onPress={handleBack}
           >
             <ThemedText className="text-white font-bold">Submit Bet</ThemedText>
           </TouchableOpacity>

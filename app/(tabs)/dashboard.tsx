@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { styled } from "nativewind";
 import { router } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -294,6 +295,7 @@ function AlertDialog({
 }
 
 export default function DashboardScreen() {
+  const navigation = useNavigation();
   const { username } = useLocalSearchParams<{ username: string }>();
   const colorScheme = useColorScheme() as Theme;
   const [activeTab, setActiveTab] = useState("11AM Events");
@@ -438,6 +440,19 @@ export default function DashboardScreen() {
 
   // Combined connection status
   const isOnline = isConnected && isSupabaseConnected;
+
+  // Add this useEffect to listen for route params changes
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("state", (event: any) => {
+      const params =
+        event.data.state?.routes?.[event.data.state.routes.length - 1]?.params;
+      if (params && "totalBetValue" in params) {
+        setTotalBetValue(Number(params.totalBetValue) || 0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigation]);
 
   return (
     <StyledSafeAreaView className="flex-1 p-4 bg-[#FDFDFD]">
