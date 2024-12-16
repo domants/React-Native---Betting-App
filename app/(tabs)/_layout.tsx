@@ -1,5 +1,7 @@
 import { Tabs } from "expo-router";
 import { Platform } from "react-native";
+import { useEffect, useState } from "react";
+import { useRouter, useNavigation } from "expo-router";
 
 import { IconSymbol } from "@/components/ui/IconSymbol";
 import { Colors, Theme } from "@/constants/Colors";
@@ -7,6 +9,21 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme() as Theme;
+  const [totalBetValue, setTotalBetValue] = useState(0);
+  const navigation = useNavigation();
+
+  // Handle parameter updates from new-bet screen
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("state", (event: any) => {
+      const params =
+        event.data.state?.routes?.[event.data.state.routes.length - 1]?.params;
+      if (params && "totalBetValue" in params) {
+        setTotalBetValue(Number(params.totalBetValue) || 0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigation]);
 
   return (
     <Tabs
@@ -20,6 +37,16 @@ export default function TabLayout() {
           },
           default: {},
         }),
+      }}
+      screenListeners={{
+        state: (event) => {
+          const params =
+            event.data.state?.routes?.[event.data.state.routes.length - 1]
+              ?.params;
+          if (params && "totalBetValue" in params) {
+            setTotalBetValue(Number(params.totalBetValue) || 0);
+          }
+        },
       }}
     >
       <Tabs.Screen

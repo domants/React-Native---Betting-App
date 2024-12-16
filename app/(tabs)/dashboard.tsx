@@ -343,6 +343,8 @@ export default function DashboardScreen() {
     setActiveTab(tabName);
   };
 
+  const [totalBetValue, setTotalBetValue] = useState<number>(0);
+
   const handleAddBet = (gameTitle: string) => {
     const eventData = GAME_DATA[activeTab as keyof typeof GAME_DATA];
     if (!isEventAvailable(eventData.cutoffTime)) {
@@ -531,7 +533,7 @@ export default function DashboardScreen() {
       <StyledView className="mt-4">
         <StyledView className="px-2 pb-0.5">
           <ThemedText className="text-lg font-bold text-right mb-4 text-[#9654F7]">
-            Total Bet: ₱0.00
+            Total Bet: ₱{totalBetValue.toFixed(2)}
           </ThemedText>
           <ThemedView
             className="p-4 rounded-xl bg-[#6F13F5] hover:bg-[#6F13F5]/80 transition-colors items-center w-full"

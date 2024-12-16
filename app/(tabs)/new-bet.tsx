@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   TextInput,
   TouchableOpacity,
+  //@ts-ignore
   TouchableWithoutFeedback,
+  //@ts-ignore
   Keyboard,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -34,6 +36,10 @@ export default function NewBetScreen() {
     { id: 1, combination: "", isRambol: false, amount: "" },
   ]);
   const [totalAmount, setTotalAmount] = useState<number>(0);
+
+  useEffect(() => {
+    router.setParams({ totalBetValue: totalAmount.toString() });
+  }, [totalAmount]);
 
   const handleCombinationChange = (id: number, value: string) => {
     setBetRows((prev) =>
@@ -184,7 +190,7 @@ export default function NewBetScreen() {
           <TouchableOpacity
             className="w-full py-4 bg-[#6F13F5] rounded-xl items-center"
             onPress={() => {
-              // Handle submit bet logic here
+              router.setParams({ totalBetValue: totalAmount.toString() });
               router.back();
             }}
           >
