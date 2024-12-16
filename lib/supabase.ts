@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import { router } from "expo-router";
 import * as crypto from "expo-crypto";
+import NetInfo from "@react-native-community/netinfo";
 
 // Polyfill for crypto.getRandomValues
 (globalThis as any).crypto = {
@@ -25,9 +26,27 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Add connection handling
+NetInfo.addEventListener((state) => {
+  if (state.isConnected) {
+    // Reconnect Supabase if needed
+    supabase.auth.startAutoRefresh();
+  } else {
+    // Pause auto-refresh when offline
+    supabase.auth.stopAutoRefresh();
+  }
+});
+
 // Listen for auth state changes
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === "PASSWORD_RECOVERY") {
     router.replace("/(auth)/update-password");
+  }
+
+  // Handle connection changes
+  if (event === "SIGNED_IN") {
+    supabase.auth.startAutoRefresh();
+  } else if (event === "SIGNED_OUT") {
+    supabase.auth.stopAutoRefresh();
   }
 });

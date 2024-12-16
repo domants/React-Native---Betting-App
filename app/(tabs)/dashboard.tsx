@@ -1,15 +1,18 @@
 import { View, Alert, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { styled } from "nativewind";
+import { router } from "expo-router";
 
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Theme } from "@/constants/Colors";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { supabase } from "@/lib/supabase";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -18,19 +21,32 @@ interface FinancialCardProps {
   title: string;
   value: string;
   icon: keyof typeof MaterialIcons.glyphMap;
+  rightElement?: React.ReactNode;
 }
 
-function FinancialCard({ title, value, icon }: FinancialCardProps) {
+function FinancialCard({
+  title,
+  value,
+  icon,
+  rightElement,
+}: FinancialCardProps) {
   const colorScheme = useColorScheme();
-  const iconColor = Colors[colorScheme ?? "light"].icon;
+  const iconColor = "#867F91";
 
   return (
-    <ThemedView className="w-[48%] p-3 rounded-xl bg-white/10 border border-white/20">
-      <StyledView className="flex-row items-center gap-2 mb-2">
-        <MaterialIcons name={icon} size={24} color={iconColor} />
-        <ThemedText className="text-sm opacity-70">{title}</ThemedText>
+    <ThemedView className="w-[48.5%] p-3 rounded-xl bg-[#F7F5FA] border border-[#5a189a] border-opacity-30">
+      <StyledView className="flex-row items-center justify-between mb-2">
+        <StyledView className="flex-row items-center flex-1 gap-2">
+          <MaterialIcons name={icon} size={24} color={iconColor} />
+          <ThemedText className="text-sm text-[#867F91] flex-1 flex-wrap">
+            {title}
+          </ThemedText>
+        </StyledView>
+        {rightElement}
       </StyledView>
-      <ThemedText className="text-lg font-bold">₱ {value}</ThemedText>
+      <ThemedText className="text-lg font-bold text-[#9654F7]">
+        ₱ {value}
+      </ThemedText>
     </ThemedView>
   );
 }
@@ -39,17 +55,30 @@ interface GameTabProps {
   title: string;
   isActive?: boolean;
   onPress: () => void;
+  isDisabled?: boolean;
 }
 
-function GameTab({ title, isActive, onPress }: GameTabProps) {
+function GameTab({ title, isActive, onPress, isDisabled }: GameTabProps) {
   return (
     <ThemedView
       className={`py-2 px-4 rounded-full border ${
-        isActive ? "bg-[#6200ee] border-[#6200ee]" : "border-white/20"
+        isDisabled
+          ? "bg-[#C9C9C9] border-[#C9C9C9]"
+          : isActive
+          ? "bg-[#6F13F5] border-[#6F13F5]"
+          : "border-[#5a189a] border-opacity-40"
       }`}
-      onTouchEnd={onPress}
+      onTouchEnd={isDisabled ? undefined : onPress}
     >
-      <ThemedText className={`text-base ${isActive ? "text-white" : ""}`}>
+      <ThemedText
+        className={`text-base ${
+          isDisabled
+            ? "text-[#867F91]"
+            : isActive
+            ? "text-[#DFCAFD]"
+            : "text-[#867F91]"
+        }`}
+      >
         {title}
       </ThemedText>
     </ThemedView>
@@ -60,20 +89,27 @@ interface GameItemProps {
   title: string;
   time: string;
   onAddBet: () => void;
+  isLast?: boolean;
 }
 
-function GameItem({ title, time, onAddBet }: GameItemProps) {
+function GameItem({ title, time, onAddBet, isLast }: GameItemProps) {
   return (
-    <StyledView className="flex-row justify-between items-center py-3 border-b border-white/20">
-      <StyledView className="flex-1">
-        <ThemedText className="text-base font-bold mb-1">{title}</ThemedText>
-        <ThemedText className="text-sm opacity-70">{time}</ThemedText>
+    <StyledView
+      className={`flex-row justify-between items-center py-2.5 ${
+        !isLast ? "border-b border-[#5a189a] border-opacity-30" : ""
+      }`}
+    >
+      <StyledView className="flex-1 mr-4">
+        <ThemedText className="text-base font-bold mb-1 text-[#9654F7]">
+          {title}
+        </ThemedText>
+        <ThemedText className="text-sm text-[#867F91]">{time}</ThemedText>
       </StyledView>
       <ThemedView
-        className="py-2 px-4 rounded-full bg-[#6200ee]"
+        className="py-2 px-4 rounded-full bg-[#6F13F5] hover:bg-[#6F13F5]/80 transition-colors"
         onTouchEnd={onAddBet}
       >
-        <ThemedText className="text-sm text-white font-bold">
+        <ThemedText className="text-sm font-bold text-[#DFCAFD]">
           Add Bet
         </ThemedText>
       </ThemedView>
@@ -285,12 +321,13 @@ export default function DashboardScreen() {
 
   const [isSynced, setIsSynced] = useState(false);
 
-  const handleTabPress = (tabName: string) => {
+  const isEventDisabled = (tabName: string) => {
     const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
-    console.log("Checking availability for:", tabName);
-    console.log("Cutoff time:", eventData.cutoffTime);
+    return !isEventAvailable(eventData.cutoffTime);
+  };
 
-    if (!isEventAvailable(eventData.cutoffTime)) {
+  const handleTabPress = (tabName: string) => {
+    if (isEventDisabled(tabName)) {
       setAlertConfig({
         isVisible: true,
         title: "Event Unavailable",
@@ -321,14 +358,14 @@ export default function DashboardScreen() {
       });
       return;
     }
-    setAlertConfig({
-      isVisible: true,
-      title: "Add Bet",
-      message: `Adding bet for ${gameTitle}`,
-      type: "info",
-      onConfirm: () =>
-        setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-      confirmText: "OK",
+
+    // Navigate to new bet screen
+    router.push({
+      pathname: "/(tabs)/new-bet",
+      params: {
+        gameTitle,
+        eventTime: eventData.cutoffTime,
+      },
     });
   };
 
@@ -369,50 +406,98 @@ export default function DashboardScreen() {
     });
   };
 
+  const isConnected = useNetworkStatus();
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(true);
+
+  // Check Supabase connection
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    const checkSupabaseConnection = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+        setIsSupabaseConnected(true);
+      } catch (error) {
+        setIsSupabaseConnected(false);
+      }
+    };
+
+    // Check immediately
+    checkSupabaseConnection();
+
+    // Then check every 30 seconds
+    interval = setInterval(checkSupabaseConnection, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Combined connection status
+  const isOnline = isConnected && isSupabaseConnected;
+
   return (
-    <StyledSafeAreaView className="flex-1 p-4">
+    <StyledSafeAreaView className="flex-1 p-4 bg-[#FDFDFD]">
       <AlertDialog {...alertConfig} />
       <StyledView className="flex-row justify-between items-start mb-5">
         <StyledView>
-          <ThemedText className="text-2xl font-bold mb-1">
+          <ThemedText className="text-2xl font-bold mb-1 text-[#9654F7]">
             Welcome {username || "Guest"}!
           </ThemedText>
-          <ThemedText className="text-sm opacity-70">{date}</ThemedText>
+          <ThemedText className="text-sm text-[#867F91]">{date}</ThemedText>
         </StyledView>
         <StyledView className="flex-row items-center">
-          <StyledView className="w-2 h-2 rounded-full bg-[#4CAF50] mr-1.5" />
-          <ThemedText className="text-sm text-[#4CAF50]">Online</ThemedText>
+          <StyledView
+            className={`w-2 h-2 rounded-full ${
+              isOnline ? "bg-green-500" : "bg-red-500"
+            } mr-1.5`}
+          />
+          <ThemedText
+            className={`text-sm ${
+              isOnline ? "text-green-500" : "text-red-500"
+            }`}
+          >
+            {isOnline ? "Online" : "Offline"}
+          </ThemedText>
         </StyledView>
       </StyledView>
 
-      <StyledView className="flex-row flex-wrap gap-3 mb-6">
-        <FinancialCard title="Gross" value="0.00" icon="account-balance" />
-        <FinancialCard title="Net Income" value="0.00" icon="payments" />
-        <FinancialCard title="Winnings" value="0.00" icon="emoji-events" />
-        <FinancialCard
-          title="Bet Commission"
-          value="0.00"
-          icon="confirmation-number"
-        />
-        <FinancialCard title="Remit to Upline" value="0.00" icon="upload" />
-        <StyledView className="w-[48%] flex-row items-center">
+      <StyledView className="flex-row flex-wrap justify-between mb-6">
+        <StyledView className="w-full flex-row justify-between mb-2">
+          <FinancialCard title="Gross" value="0.00" icon="account-balance" />
+          <FinancialCard title="Net Income" value="0.00" icon="payments" />
+        </StyledView>
+
+        <StyledView className="w-full flex-row justify-between mb-2">
+          <FinancialCard title="Winnings" value="0.00" icon="emoji-events" />
+          <FinancialCard
+            title="Bet Commission"
+            value="0.00"
+            icon="confirmation-number"
+          />
+        </StyledView>
+
+        <StyledView className="w-full flex-row justify-between">
+          <FinancialCard title="Remit to Upline" value="0.00" icon="upload" />
           <FinancialCard
             title={isSynced ? "Synced Data" : "Unsynced Data"}
             value="0"
             icon="sync"
-          />
-          <MaterialIcons
-            name="refresh"
-            size={24}
-            color={Colors[colorScheme ?? "light"].icon}
-            className="absolute right-3 top-1/2 -translate-y-3"
-            onPress={handleSync}
+            rightElement={
+              <MaterialIcons
+                name="refresh"
+                size={24}
+                color={Colors[colorScheme ?? "light"].icon}
+                onPress={handleSync}
+              />
+            }
           />
         </StyledView>
       </StyledView>
 
-      <ThemedView className="flex-1 p-4 rounded-xl bg-white/10 border border-white/20 mb-auto">
-        <ThemedText className="text-lg font-bold mb-3.5">
+      <ThemedView className="flex-1 p-4 rounded-xl bg-[#F7F5FA] border border-[#5a189a] border-opacity-30 mb-auto">
+        <ThemedText className="text-lg font-bold mb-3.5 text-[#9654F7]">
           Today's Games
         </ThemedText>
         <StyledView className="flex-row justify-between mb-2.5">
@@ -421,32 +506,38 @@ export default function DashboardScreen() {
               key={tabName}
               title={tabName}
               isActive={activeTab === tabName}
+              isDisabled={isEventDisabled(tabName)}
               onPress={() => handleTabPress(tabName)}
             />
           ))}
         </StyledView>
-        <StyledView className="gap-3">
-          {GAME_DATA[activeTab as keyof typeof GAME_DATA].games.map((game) => (
-            <GameItem
-              key={game.title}
-              title={game.title}
-              time={game.time}
-              onAddBet={() => handleAddBet(game.title)}
-            />
-          ))}
+        <StyledView className="flex-1 min-h-0">
+          <StyledView className="flex-1 gap-3">
+            {GAME_DATA[activeTab as keyof typeof GAME_DATA].games.map(
+              (game, index, array) => (
+                <GameItem
+                  key={game.title}
+                  title={game.title}
+                  time={game.time}
+                  onAddBet={() => handleAddBet(game.title)}
+                  isLast={index === array.length - 1}
+                />
+              )
+            )}
+          </StyledView>
         </StyledView>
       </ThemedView>
 
-      <StyledView className="mt-auto pt-4 pb-6 border-t border-white/20">
+      <StyledView className="mt-4">
         <StyledView className="px-2 pb-0.5">
-          <ThemedText className="text-lg font-bold text-right mb-4">
+          <ThemedText className="text-lg font-bold text-right mb-4 text-[#9654F7]">
             Total Bet: ₱0.00
           </ThemedText>
           <ThemedView
-            className="p-4 rounded-xl bg-[#6200ee] items-center w-full"
+            className="p-4 rounded-xl bg-[#6F13F5] hover:bg-[#6F13F5]/80 transition-colors items-center w-full"
             onTouchEnd={handleSubmitBet}
           >
-            <ThemedText className="text-base font-bold text-white">
+            <ThemedText className="text-base font-bold text-[#DFCAFD]">
               Submit Bet
             </ThemedText>
           </ThemedView>

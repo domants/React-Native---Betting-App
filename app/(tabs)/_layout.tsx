@@ -11,7 +11,8 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
+        tabBarActiveTintColor: "#6F13F5",
+        tabBarInactiveTintColor: "#C9C9C9",
         headerShown: false,
         tabBarStyle: Platform.select({
           ios: {
@@ -55,6 +56,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="trophy.fill" color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="new-bet"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
