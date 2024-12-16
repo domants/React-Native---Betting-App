@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { StyleSheet, View, TextInput, TouchableOpacity } from "react-native";
+import { View, TextInput, TouchableOpacity } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
 import { Alert } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -15,27 +14,99 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+
+      // Attempt login
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
-
-      // Get username from email (everything before @)
-      const username = email.split("@")[0];
-
-      // Navigate to dashboard with params
-      router.replace({
-        pathname: "/(tabs)/dashboard",
-        params: { username },
-      });
-    } catch (error) {
-      if (error instanceof Error) {
-        Alert.alert("Error", error.message);
+      if (authError) {
+        console.error("Auth error:", authError);
+        Alert.alert("Error", "Invalid email or password");
+        return;
       }
+
+      if (!user) {
+        console.error("No user returned from auth");
+        Alert.alert("Error", "Authentication failed");
+        return;
+      }
+
+      console.log("Auth successful, user ID:", user.id);
+
+      // Check if user exists in Users table
+      const { data: userData, error: userError } = await supabase
+        .from("Users")
+        .select("*")
+        .eq("id", user.id);
+
+      // If user doesn't exist in Users table, create a record
+      if (!userData || userData.length === 0) {
+        console.log("Creating new user record in Users table");
+        const { error: insertError } = await supabase.from("Users").insert([
+          {
+            id: user.id,
+            email: user.email,
+            username: user.email?.split("@")[0],
+            display_name: user.email?.split("@")[0],
+          },
+        ]);
+
+        if (insertError) {
+          console.error("Failed to create user record:", insertError);
+          Alert.alert("Error", "Failed to set up user account");
+          return;
+        }
+
+        // Fetch the newly created user data
+        const { data: newUserData, error: fetchError } = await supabase
+          .from("Users")
+          .select("username, display_name")
+          .eq("id", user.id)
+          .single();
+
+        if (fetchError || !newUserData) {
+          console.error("Failed to fetch new user data:", fetchError);
+          Alert.alert("Error", "Failed to fetch user account");
+          return;
+        }
+
+        // Navigate to dashboard with new user data
+        router.replace({
+          pathname: "/(tabs)/dashboard",
+          params: {
+            username:
+              newUserData.display_name ||
+              newUserData.username ||
+              email.split("@")[0],
+          },
+        });
+      } else {
+        // Navigate to dashboard with existing user data
+        router.replace({
+          pathname: "/(tabs)/dashboard",
+          params: {
+            username:
+              userData[0].display_name ||
+              userData[0].username ||
+              email.split("@")[0],
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert("Error", "An unexpected error occurred");
     } finally {
       setLoading(false);
     }
@@ -50,15 +121,17 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <ThemedText style={styles.title}>Welcome to BetMaster</ThemedText>
+    <SafeAreaView className="flex-1">
+      <View className="flex-1 p-6 justify-center">
+        <ThemedText className="text-2xl font-bold text-center mb-8">
+          Welcome to BetMaster
+        </ThemedText>
 
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Email</ThemedText>
+        <View className="space-y-4">
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">Email</ThemedText>
             <TextInput
-              style={styles.input}
+              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
               placeholder="Enter your email"
               placeholderTextColor="#666"
               keyboardType="email-address"
@@ -68,10 +141,10 @@ export default function LoginScreen() {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Password</ThemedText>
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">Password</ThemedText>
             <TextInput
-              style={styles.input}
+              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
               placeholder="Enter your password"
               placeholderTextColor="#666"
               secureTextEntry
@@ -80,39 +153,30 @@ export default function LoginScreen() {
             />
           </View>
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <ThemedText style={styles.loginButtonText}>Log In</ThemedText>
+          <TouchableOpacity
+            className="bg-black p-4 rounded-lg items-center mt-2"
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <ThemedText className="text-white text-base font-semibold">
+              {loading ? "Logging in..." : "Log In"}
+            </ThemedText>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={handleForgotPassword}>
-            <ThemedText style={styles.forgotPassword}>
+            <ThemedText className="text-blue-500 text-center text-sm">
               Forgot password?
             </ThemedText>
           </TouchableOpacity>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <ThemedText style={styles.dividerText}>OR CONTINUE WITH</ThemedText>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialButtons}>
-            <TouchableOpacity style={styles.socialButton}>
-              <MaterialIcons name="mail" size={20} color="#666" />
-              <ThemedText style={styles.socialButtonText}>Google</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <MaterialIcons name="facebook" size={20} color="#666" />
-              <ThemedText style={styles.socialButtonText}>Facebook</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.signupContainer}>
-            <ThemedText style={styles.signupText}>
+          <View className="flex-row justify-center mt-6">
+            <ThemedText className="text-gray-500">
               Don't have an account?{" "}
             </ThemedText>
             <TouchableOpacity onPress={handleSignUp}>
-              <ThemedText style={styles.signupLink}>Sign up</ThemedText>
+              <ThemedText className="text-blue-500 font-medium">
+                Sign up
+              </ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -120,103 +184,3 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  input: {
-    backgroundColor: "#ffffff",
-    padding: 16,
-    borderRadius: 8,
-    fontSize: 16,
-    color: "#000000",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  loginButton: {
-    backgroundColor: "#000000",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  loginButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  forgotPassword: {
-    color: "#3b82f6",
-    textAlign: "center",
-    fontSize: 14,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 24,
-    gap: 8,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#e5e7eb",
-  },
-  dividerText: {
-    color: "#6b7280",
-    fontSize: 12,
-  },
-  socialButtons: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  socialButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-  },
-  socialButtonText: {
-    color: "#666",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  signupContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 24,
-  },
-  signupText: {
-    color: "#6b7280",
-  },
-  signupLink: {
-    color: "#3b82f6",
-    fontWeight: "500",
-  },
-});

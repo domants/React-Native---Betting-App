@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, TextInput, TouchableOpacity, Alert } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -10,34 +11,37 @@ import { supabase } from "@/lib/supabase";
 export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleRegister = async () => {
-    if (!email || !username || !phone || !password || !confirmPassword) {
+    if (!email || !username || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
     try {
-      const { error } = await supabase.auth.signUp({
+      // First sign up the user in auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            username,
-            phone,
-          },
-        },
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
+
+      // If auth signup successful, create user record in Users table
+      if (authData.user) {
+        const { error: userError } = await supabase.from("Users").insert([
+          {
+            id: authData.user.id,
+            email: email,
+            username: username,
+            display_name: username,
+          },
+        ]);
+
+        if (userError) throw userError;
+      }
 
       Alert.alert(
         "Success",
@@ -57,7 +61,7 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView className="flex-1">
-      <View className="flex-1 p-6 justify-center">
+      <View className="flex-1 p-6 pt-12">
         <ThemedText className="text-2xl font-bold text-center mb-2">
           Create Account
         </ThemedText>
@@ -92,41 +96,27 @@ export default function RegisterScreen() {
           </View>
 
           <View className="space-y-2">
-            <ThemedText className="text-base font-medium">Phone</ThemedText>
-            <TextInput
-              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
-              placeholder="Enter your phone number"
-              placeholderTextColor="#666"
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-            />
-          </View>
-
-          <View className="space-y-2">
             <ThemedText className="text-base font-medium">Password</ThemedText>
-            <TextInput
-              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
-              placeholder="Enter your password"
-              placeholderTextColor="#666"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
-          </View>
-
-          <View className="space-y-2">
-            <ThemedText className="text-base font-medium">
-              Confirm Password
-            </ThemedText>
-            <TextInput
-              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
-              placeholder="Confirm your password"
-              placeholderTextColor="#666"
-              secureTextEntry
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
+            <View className="relative">
+              <TextInput
+                className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
+                placeholder="Enter your password"
+                placeholderTextColor="#666"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity
+                className="absolute right-4 top-4"
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <MaterialIcons
+                  name={showPassword ? "visibility" : "visibility-off"}
+                  size={24}
+                  color="#666"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
