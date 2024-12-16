@@ -1,24 +1,21 @@
 import { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
+import { View, TextInput, TouchableOpacity, Alert } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { supabase } from "@/lib/supabase";
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleRegister = () => {
-    if (!email || !password || !confirmPassword) {
+  const handleRegister = async () => {
+    if (!email || !username || !phone || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
@@ -28,28 +25,64 @@ export default function RegisterScreen() {
       return;
     }
 
-    // Add your registration logic here
-    router.replace("/(tabs)/dashboard");
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            phone,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      Alert.alert(
+        "Success",
+        "Registration successful! Please check your email for verification.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    } catch (error) {
+      if (error instanceof Error) {
+        Alert.alert("Error", error.message);
+      }
+    }
   };
 
   const handleLogin = () => {
-    router.back(); // Go back to login screen
+    router.back();
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <ThemedText style={styles.title}>Create Account</ThemedText>
-        <ThemedText style={styles.subtitle}>
+    <SafeAreaView className="flex-1">
+      <View className="flex-1 p-6 justify-center">
+        <ThemedText className="text-2xl font-bold text-center mb-2">
+          Create Account
+        </ThemedText>
+        <ThemedText className="text-base text-gray-500 text-center mb-8">
           Join BetMaster and start betting today
         </ThemedText>
 
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Email</ThemedText>
+        <View className="space-y-4">
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">Username</ThemedText>
             <TextInput
-              style={styles.input}
-              placeholder="m@example.com"
+              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
+              placeholder="Enter your username"
+              placeholderTextColor="#666"
+              autoCapitalize="none"
+              value={username}
+              onChangeText={setUsername}
+            />
+          </View>
+
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">Email</ThemedText>
+            <TextInput
+              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
+              placeholder="Enter your email"
               placeholderTextColor="#666"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -58,10 +91,22 @@ export default function RegisterScreen() {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Password</ThemedText>
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">Phone</ThemedText>
             <TextInput
-              style={styles.input}
+              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
+              placeholder="Enter your phone number"
+              placeholderTextColor="#666"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+            />
+          </View>
+
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">Password</ThemedText>
+            <TextInput
+              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
               placeholder="Enter your password"
               placeholderTextColor="#666"
               secureTextEntry
@@ -70,10 +115,12 @@ export default function RegisterScreen() {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Confirm Password</ThemedText>
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">
+              Confirm Password
+            </ThemedText>
             <TextInput
-              style={styles.input}
+              className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
               placeholder="Confirm your password"
               placeholderTextColor="#666"
               secureTextEntry
@@ -83,35 +130,22 @@ export default function RegisterScreen() {
           </View>
 
           <TouchableOpacity
-            style={styles.registerButton}
+            className="bg-black p-4 rounded-lg items-center mt-2"
             onPress={handleRegister}
           >
-            <ThemedText style={styles.registerButtonText}>
-              Create Account
+            <ThemedText className="text-white text-base font-semibold">
+              Sign Up
             </ThemedText>
           </TouchableOpacity>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <ThemedText style={styles.dividerText}>OR CONTINUE WITH</ThemedText>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialButtons}>
-            <TouchableOpacity style={styles.socialButton}>
-              <ThemedText>Google</ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton}>
-              <ThemedText>Facebook</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.loginContainer}>
-            <ThemedText style={styles.loginText}>
+          <View className="flex-row justify-center mt-6">
+            <ThemedText className="text-gray-500">
               Already have an account?{" "}
             </ThemedText>
             <TouchableOpacity onPress={handleLogin}>
-              <ThemedText style={styles.loginLink}>Log in</ThemedText>
+              <ThemedText className="text-blue-500 font-medium">
+                Log in
+              </ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -119,96 +153,3 @@ export default function RegisterScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6b7280",
-    textAlign: "center",
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  input: {
-    backgroundColor: "#ffffff",
-    padding: 16,
-    borderRadius: 8,
-    fontSize: 16,
-    color: "#000000",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  registerButton: {
-    backgroundColor: "#000000",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  registerButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 24,
-    gap: 8,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#e5e7eb",
-  },
-  dividerText: {
-    color: "#6b7280",
-    fontSize: 12,
-  },
-  socialButtons: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  socialButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    alignItems: "center",
-  },
-  loginContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 24,
-  },
-  loginText: {
-    color: "#6b7280",
-  },
-  loginLink: {
-    color: "#3b82f6",
-    fontWeight: "500",
-  },
-});

@@ -3,26 +3,50 @@ import { StyleSheet, View, TextInput, TouchableOpacity } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { Alert } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Get username from email (everything before @)
-    const username = email.split("@")[0];
-    // Navigate to dashboard with params
-    router.replace({
-      pathname: "/(tabs)/dashboard",
-      params: { username },
-    });
+  const handleLogin = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Get username from email (everything before @)
+      const username = email.split("@")[0];
+
+      // Navigate to dashboard with params
+      router.replace({
+        pathname: "/(tabs)/dashboard",
+        params: { username },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        Alert.alert("Error", error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignUp = () => {
-    router.push("/register");
+    router.push("/(auth)/register" as const);
+  };
+
+  const handleForgotPassword = () => {
+    router.push("/(auth)/reset-password" as any);
   };
 
   return (
@@ -60,7 +84,7 @@ export default function LoginScreen() {
             <ThemedText style={styles.loginButtonText}>Log In</ThemedText>
           </TouchableOpacity>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={handleForgotPassword}>
             <ThemedText style={styles.forgotPassword}>
               Forgot password?
             </ThemedText>
