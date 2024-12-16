@@ -21,16 +21,34 @@ export default function RegisterScreen() {
     }
 
     try {
-      // First sign up the user in auth
+      // First sign up the user in auth with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            display_name: username, // Set display_name in user metadata
+          },
+        },
       });
 
       if (authError) throw authError;
 
       // If auth signup successful, create user record in Users table
       if (authData.user) {
+        // First, check if a user with this username already exists
+        const { data: existingUser, error: checkError } = await supabase
+          .from("Users")
+          .select("username")
+          .eq("username", username)
+          .single();
+
+        if (existingUser) {
+          Alert.alert("Error", "Username already taken");
+          return;
+        }
+
+        // Create the user record
         const { error: userError } = await supabase.from("Users").insert([
           {
             id: authData.user.id,
@@ -40,14 +58,33 @@ export default function RegisterScreen() {
           },
         ]);
 
-        if (userError) throw userError;
+        if (userError) {
+          console.error("User creation error:", userError);
+          throw userError;
+        }
+
+        // Update the user's metadata if needed
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: { display_name: username },
+        });
+
+        if (updateError) {
+          console.error("Metadata update error:", updateError);
+        }
+
+        // Verify everything was set correctly
+        const { data: userData, error: verifyError } =
+          await supabase.auth.getUser();
+        if (verifyError) {
+          console.error("Verification error:", verifyError);
+        } else {
+          console.log("User metadata:", userData.user.user_metadata);
+        }
       }
 
-      Alert.alert(
-        "Success",
-        "Registration successful! Please check your email for verification.",
-        [{ text: "OK", onPress: () => router.back() }]
-      );
+      Alert.alert("Success", "Registration successful!", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
     } catch (error) {
       if (error instanceof Error) {
         Alert.alert("Error", error.message);

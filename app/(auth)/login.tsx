@@ -9,12 +9,12 @@ import { ThemedView } from "@/components/ThemedView";
 import { supabase } from "@/lib/supabase";
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!identifier || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
@@ -22,7 +22,27 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      // Attempt login
+      // First, check if the identifier is an email
+      const isEmail = identifier.includes("@");
+      let email = identifier;
+
+      // If not an email, look up the user's email by username
+      if (!isEmail) {
+        const { data: userData, error: userError } = await supabase
+          .from("Users")
+          .select("email")
+          .eq("username", identifier)
+          .single();
+
+        if (userError || !userData) {
+          Alert.alert("Error", "User not found");
+          return;
+        }
+
+        email = userData.email;
+      }
+
+      // Attempt login with email
       const {
         data: { user },
         error: authError,
@@ -32,18 +52,14 @@ export default function LoginScreen() {
       });
 
       if (authError) {
-        console.error("Auth error:", authError);
-        Alert.alert("Error", "Invalid email or password");
+        Alert.alert("Error", "Invalid credentials");
         return;
       }
 
       if (!user) {
-        console.error("No user returned from auth");
         Alert.alert("Error", "Authentication failed");
         return;
       }
-
-      console.log("Auth successful, user ID:", user.id);
 
       // Check if user exists in Users table
       const { data: userData, error: userError } = await supabase
@@ -53,7 +69,6 @@ export default function LoginScreen() {
 
       // If user doesn't exist in Users table, create a record
       if (!userData || userData.length === 0) {
-        console.log("Creating new user record in Users table");
         const { error: insertError } = await supabase.from("Users").insert([
           {
             id: user.id,
@@ -64,7 +79,6 @@ export default function LoginScreen() {
         ]);
 
         if (insertError) {
-          console.error("Failed to create user record:", insertError);
           Alert.alert("Error", "Failed to set up user account");
           return;
         }
@@ -77,12 +91,10 @@ export default function LoginScreen() {
           .single();
 
         if (fetchError || !newUserData) {
-          console.error("Failed to fetch new user data:", fetchError);
           Alert.alert("Error", "Failed to fetch user account");
           return;
         }
 
-        // Navigate to dashboard with new user data
         router.replace({
           pathname: "/(tabs)/dashboard",
           params: {
@@ -93,7 +105,6 @@ export default function LoginScreen() {
           },
         });
       } else {
-        // Navigate to dashboard with existing user data
         router.replace({
           pathname: "/(tabs)/dashboard",
           params: {
@@ -105,7 +116,6 @@ export default function LoginScreen() {
         });
       }
     } catch (error) {
-      console.error("Login error:", error);
       Alert.alert("Error", "An unexpected error occurred");
     } finally {
       setLoading(false);
@@ -117,7 +127,7 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = () => {
-    router.push("/(auth)/reset-password" as any);
+    router.push("/(auth)/reset-password");
   };
 
   return (
@@ -129,15 +139,16 @@ export default function LoginScreen() {
 
         <View className="space-y-4">
           <View className="space-y-2">
-            <ThemedText className="text-base font-medium">Email</ThemedText>
+            <ThemedText className="text-base font-medium">
+              Email or Username
+            </ThemedText>
             <TextInput
               className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
-              placeholder="Enter your email"
+              placeholder="Enter your email or username"
               placeholderTextColor="#666"
-              keyboardType="email-address"
               autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
+              value={identifier}
+              onChangeText={setIdentifier}
             />
           </View>
 

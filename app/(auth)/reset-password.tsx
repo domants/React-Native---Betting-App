@@ -10,7 +10,7 @@ import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseUrl } from "@/lib/supabase";
 
 export default function ResetPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -22,17 +22,25 @@ export default function ResetPasswordScreen() {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Error", "Please enter a valid email address");
+      return;
+    }
+
     try {
       setLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "myapp://reset-password-update",
+        redirectTo: "myapp://update-password",
       });
 
       if (error) throw error;
 
-      Alert.alert("Success", "Check your email for the password reset link", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        "Success",
+        "Check your email for the password reset link. Click the link to set a new password.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
     } catch (error) {
       if (error instanceof Error) {
         Alert.alert("Error", error.message);

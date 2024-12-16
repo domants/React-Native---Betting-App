@@ -82,22 +82,72 @@ function GameItem({ title, time, onAddBet }: GameItemProps) {
 }
 
 function getCurrentPhTime() {
-  return new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" });
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: "Asia/Manila",
+    hour: "numeric" as const,
+    minute: "numeric" as const,
+    hour12: true,
+  };
+  return new Date().toLocaleString("en-US", options);
 }
 
 function isEventAvailable(eventTime: string): boolean {
-  const currentDate = new Date(getCurrentPhTime());
-  const [hour, modifier] = eventTime.split(" ");
-  let [eventHour] = hour.split(":").map(Number);
+  // Get current time in Manila in 12-hour format (e.g., "2:30 PM")
+  const currentTimeStr = getCurrentPhTime();
 
-  if (modifier === "PM" && eventHour < 12) eventHour += 12;
-  if (modifier === "AM" && eventHour === 12) eventHour = 0;
+  // Parse current time - handle the case where PM/AM might be at the end
+  const currentTimeParts = currentTimeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!currentTimeParts) return false;
 
-  eventHour -= 1;
+  let currentHour = parseInt(currentTimeParts[1]);
+  let currentMinute = parseInt(currentTimeParts[2]);
+  const currentModifier = currentTimeParts[3].toUpperCase();
 
-  const currentHour = currentDate.getHours();
+  // Parse cutoff time
+  const cutoffTimeParts = eventTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!cutoffTimeParts) return false;
 
-  return currentHour < eventHour;
+  let cutoffHour = parseInt(cutoffTimeParts[1]);
+  let cutoffMinute = parseInt(cutoffTimeParts[2]);
+  const cutoffModifier = cutoffTimeParts[3].toUpperCase();
+
+  // Debug logs for initial values
+  console.log(
+    "Raw Current Time:",
+    currentTimeStr,
+    `(${currentHour}:${currentMinute} ${currentModifier})`
+  );
+  console.log(
+    "Raw Cutoff Time:",
+    eventTime,
+    `(${cutoffHour}:${cutoffMinute} ${cutoffModifier})`
+  );
+
+  // Convert to 24-hour format
+  if (currentModifier === "PM" && currentHour !== 12) {
+    currentHour += 12;
+  } else if (currentModifier === "AM" && currentHour === 12) {
+    currentHour = 0;
+  }
+
+  if (cutoffModifier === "PM" && cutoffHour !== 12) {
+    cutoffHour += 12;
+  } else if (cutoffModifier === "AM" && cutoffHour === 12) {
+    cutoffHour = 0;
+  }
+
+  const currentMins = currentHour * 60 + currentMinute;
+  const cutoffMins = cutoffHour * 60 + cutoffMinute;
+
+  console.log(
+    `24h format - Current: ${currentHour}:${currentMinute} (${currentMins} mins)`
+  );
+  console.log(
+    `24h format - Cutoff: ${cutoffHour}:${cutoffMinute} (${cutoffMins} mins)`
+  );
+  console.log(`Comparing minutes: ${currentMins} <= ${cutoffMins}`);
+
+  return currentMins <= cutoffMins;
 }
 
 const GAME_DATA = {
@@ -237,6 +287,9 @@ export default function DashboardScreen() {
 
   const handleTabPress = (tabName: string) => {
     const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
+    console.log("Checking availability for:", tabName);
+    console.log("Cutoff time:", eventData.cutoffTime);
+
     if (!isEventAvailable(eventData.cutoffTime)) {
       setAlertConfig({
         isVisible: true,
