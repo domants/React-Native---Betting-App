@@ -7,6 +7,7 @@ import {
   TouchableWithoutFeedback,
   //@ts-ignore
   Keyboard,
+  Alert,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -107,7 +108,41 @@ export default function NewBetScreen() {
   };
 
   const handleBack = () => {
-    router.setParams({ totalBetValue: totalAmount.toString() });
+    // Only show success alert if there are bet details
+    if (betRows.some((row) => row.combination && row.amount)) {
+      Alert.alert("Success", "Bet successfully saved to card", [
+        {
+          text: "OK",
+          onPress: () => {
+            // Format and navigate back after alert is dismissed
+            const formattedBetRows = betRows.map((row) => ({
+              combination: row.combination,
+              amount: Number(row.amount),
+              is_rambol: row.isRambol,
+            }));
+
+            router.setParams({
+              totalBetValue: totalAmount.toString(),
+              betDetails: JSON.stringify(formattedBetRows),
+            });
+            router.back();
+          },
+        },
+      ]);
+      return;
+    }
+
+    // If no bets, just navigate back without alert
+    const formattedBetRows = betRows.map((row) => ({
+      combination: row.combination,
+      amount: Number(row.amount),
+      is_rambol: row.isRambol,
+    }));
+
+    router.setParams({
+      totalBetValue: totalAmount.toString(),
+      betDetails: JSON.stringify(formattedBetRows),
+    });
     router.back();
   };
 
@@ -131,30 +166,52 @@ export default function NewBetScreen() {
                 <TextInput
                   className="flex-1 h-12 px-4 mr-2 border border-gray-200 rounded-lg"
                   value={row.combination}
-                  onChangeText={(value: string) =>
-                    handleCombinationChange(row.id, value)
-                  }
+                  onChangeText={(value: string) => {
+                    // Only allow numbers and limit based on game type
+                    const numericValue = value.replace(/[^0-9]/g, "");
+                    if (gameTitle?.includes("LAST TWO")) {
+                      // For LAST TWO: limit to 2 digits and max value of 99
+                      if (
+                        numericValue.length <= 2 &&
+                        parseInt(numericValue || "0") <= 99
+                      ) {
+                        handleCombinationChange(row.id, numericValue);
+                      }
+                    } else {
+                      // For SWERTRES: limit to 3 digits
+                      if (numericValue.length <= 3) {
+                        handleCombinationChange(row.id, numericValue);
+                      }
+                    }
+                  }}
                   keyboardType="numeric"
-                  maxLength={3}
+                  maxLength={gameTitle?.includes("LAST TWO") ? 2 : 3}
                   placeholder="Combination"
                 />
-                <TouchableOpacity
-                  onPress={() => handleRambolToggle(row.id)}
-                  className="flex-row items-center absolute right-4"
-                >
-                  <StyledView
-                    className={`w-5 h-5 border rounded mr-1 items-center justify-center ${
-                      row.isRambol
-                        ? "bg-[#6F13F5] border-[#6F13F5]"
-                        : "border-gray-400"
-                    }`}
+                {!gameTitle?.includes("LAST TWO") && (
+                  <TouchableOpacity
+                    onPress={() => handleRambolToggle(row.id)}
+                    className="flex-row items-center absolute right-4"
                   >
-                    {row.isRambol && (
-                      <MaterialIcons name="check" size={16} color="white" />
-                    )}
-                  </StyledView>
-                  <ThemedText className="text-gray-600">R</ThemedText>
-                </TouchableOpacity>
+                    <StyledView
+                      className={`w-5 h-5 border rounded mr-1 items-center justify-center ${
+                        row.isRambol
+                          ? "bg-[#6F13F5] border-[#6F13F5]"
+                          : "border-gray-400"
+                      }`}
+                    >
+                      {row.isRambol && (
+                        <MaterialIcons name="check" size={16} color="white" />
+                      )}
+                    </StyledView>
+                    <ThemedText className="text-gray-600">R</ThemedText>
+                  </TouchableOpacity>
+                )}
+                {!gameTitle?.includes("LAST TWO") && row.isRambol && (
+                  <ThemedText className="text-sm font-bold text-[#6F13F5]">
+                    R
+                  </ThemedText>
+                )}
               </StyledView>
               <TextInput
                 className="w-20 h-12 px-4 mr-2 border border-gray-200 rounded-lg"
@@ -181,11 +238,16 @@ export default function NewBetScreen() {
             <TouchableOpacity
               onPress={addNewRow}
               disabled={betRows.length >= 10}
-              className={`py-2 px-4 rounded-full border border-[#6F13F5] ${
+              className={`h-10 px-4 rounded-full border border-[#6F13F5] flex-row items-center justify-center space-x-1 w-24 ${
                 betRows.length >= 10 ? "opacity-50" : ""
               }`}
             >
-              <ThemedText className="text-[#6F13F5]">Add Row</ThemedText>
+              <ThemedText className="text-[#6F13F5] text-sm">Add</ThemedText>
+              <MaterialIcons
+                name="add-circle-outline"
+                size={17}
+                color="#6F13F5"
+              />
             </TouchableOpacity>
             <ThemedText className="text-lg font-bold">
               Total: ₱{totalAmount.toFixed(2)}

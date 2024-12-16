@@ -6,6 +6,8 @@ import { useLocalSearchParams } from "expo-router";
 import { styled } from "nativewind";
 import { router } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
+import { fetchBetSummary, type BetSummary } from "@/lib/supabase";
+import { useQuery } from "@tanstack/react-query";
 
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -13,7 +15,12 @@ import { Theme } from "@/constants/Colors";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { supabase } from "@/lib/supabase";
+import {
+  supabase,
+  createBet,
+  getBetById,
+  getCurrentUserBets,
+} from "@/lib/supabase";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -91,9 +98,16 @@ interface GameItemProps {
   time: string;
   onAddBet: () => void;
   isLast?: boolean;
+  isDisabled?: boolean;
 }
 
-function GameItem({ title, time, onAddBet, isLast }: GameItemProps) {
+function GameItem({
+  title,
+  time,
+  onAddBet,
+  isLast,
+  isDisabled,
+}: GameItemProps) {
   return (
     <StyledView
       className={`flex-row justify-between items-center py-2.5 ${
@@ -107,10 +121,18 @@ function GameItem({ title, time, onAddBet, isLast }: GameItemProps) {
         <ThemedText className="text-sm text-[#867F91]">{time}</ThemedText>
       </StyledView>
       <ThemedView
-        className="py-2 px-4 rounded-full bg-[#6F13F5] hover:bg-[#6F13F5]/80 transition-colors"
-        onTouchEnd={onAddBet}
+        className={`py-2 px-4 rounded-full ${
+          isDisabled
+            ? "bg-[#C9C9C9]"
+            : "bg-[#6F13F5] hover:bg-[#6F13F5]/80 transition-colors"
+        }`}
+        onTouchEnd={isDisabled ? undefined : onAddBet}
       >
-        <ThemedText className="text-sm font-bold text-[#DFCAFD]">
+        <ThemedText
+          className={`text-sm font-bold ${
+            isDisabled ? "text-[#867F91]" : "text-[#DFCAFD]"
+          }`}
+        >
           Add Bet
         </ThemedText>
       </ThemedView>
@@ -128,7 +150,10 @@ function getCurrentPhTime() {
   return new Date().toLocaleString("en-US", options);
 }
 
-function isEventAvailable(eventTime: string): boolean {
+function isEventAvailable(
+  eventTime: string,
+  shouldLog: boolean = false
+): boolean {
   // Get current time in Manila in 12-hour format (e.g., "2:30 PM")
   const currentTimeStr = getCurrentPhTime();
 
@@ -149,16 +174,18 @@ function isEventAvailable(eventTime: string): boolean {
   const cutoffModifier = cutoffTimeParts[3].toUpperCase();
 
   // Debug logs for initial values
-  console.log(
-    "Raw Current Time:",
-    currentTimeStr,
-    `(${currentHour}:${currentMinute} ${currentModifier})`
-  );
-  console.log(
-    "Raw Cutoff Time:",
-    eventTime,
-    `(${cutoffHour}:${cutoffMinute} ${cutoffModifier})`
-  );
+  if (shouldLog) {
+    console.log(
+      "Raw Current Time:",
+      currentTimeStr,
+      `(${currentHour}:${currentMinute} ${currentModifier})`
+    );
+    console.log(
+      "Raw Cutoff Time:",
+      eventTime,
+      `(${cutoffHour}:${cutoffMinute} ${cutoffModifier})`
+    );
+  }
 
   // Convert to 24-hour format
   if (currentModifier === "PM" && currentHour !== 12) {
@@ -176,13 +203,15 @@ function isEventAvailable(eventTime: string): boolean {
   const currentMins = currentHour * 60 + currentMinute;
   const cutoffMins = cutoffHour * 60 + cutoffMinute;
 
-  console.log(
-    `24h format - Current: ${currentHour}:${currentMinute} (${currentMins} mins)`
-  );
-  console.log(
-    `24h format - Cutoff: ${cutoffHour}:${cutoffMinute} (${cutoffMins} mins)`
-  );
-  console.log(`Comparing minutes: ${currentMins} <= ${cutoffMins}`);
+  if (shouldLog) {
+    console.log(
+      `24h format - Current: ${currentHour}:${currentMinute} (${currentMins} mins)`
+    );
+    console.log(
+      `24h format - Cutoff: ${cutoffHour}:${cutoffMinute} (${cutoffMins} mins)`
+    );
+    console.log(`Comparing minutes: ${currentMins} <= ${cutoffMins}`);
+  }
 
   return currentMins <= cutoffMins;
 }
@@ -294,6 +323,14 @@ function AlertDialog({
   );
 }
 
+function LoadingSpinner() {
+  return (
+    <StyledView className="flex-1 justify-center items-center">
+      <StyledView className="w-12 h-12 border-4 border-[#6F13F5] border-t-transparent rounded-full animate-spin" />
+    </StyledView>
+  );
+}
+
 export default function DashboardScreen() {
   const navigation = useNavigation();
   const { username } = useLocalSearchParams<{ username: string }>();
@@ -325,11 +362,13 @@ export default function DashboardScreen() {
 
   const isEventDisabled = (tabName: string) => {
     const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
-    return !isEventAvailable(eventData.cutoffTime);
+    return !isEventAvailable(eventData.cutoffTime, false);
   };
 
   const handleTabPress = (tabName: string) => {
     if (isEventDisabled(tabName)) {
+      const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
+      const isAvailable = isEventAvailable(eventData.cutoffTime, true);
       setAlertConfig({
         isVisible: true,
         title: "Event Unavailable",
@@ -373,27 +412,93 @@ export default function DashboardScreen() {
     });
   };
 
-  const handleSubmitBet = () => {
-    setAlertConfig({
-      isVisible: true,
-      title: "Submit Bet",
-      message: "Are you sure you want to submit your bets?",
-      type: "info",
-      onConfirm: () => {
+  const handleSubmitBet = async () => {
+    try {
+      if (betDetails.length === 0) {
         setAlertConfig({
           isVisible: true,
-          title: "Success",
-          message: "Bets submitted successfully!",
-          type: "success",
+          title: "Error",
+          message: "Please add some bets before submitting.",
+          type: "error",
           onConfirm: () =>
             setAlertConfig((prev) => ({ ...prev, isVisible: false })),
           confirmText: "OK",
         });
-      },
-      onCancel: () => setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-      confirmText: "Submit",
-      cancelText: "Cancel",
-    });
+        return;
+      }
+
+      // Validate bet details
+      const invalidBets = betDetails.filter(
+        (bet) => !bet.combination || !bet.amount || bet.amount <= 0
+      );
+
+      if (invalidBets.length > 0) {
+        setAlertConfig({
+          isVisible: true,
+          title: "Error",
+          message: "All bets must have a combination and valid amount.",
+          type: "error",
+          onConfirm: () =>
+            setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+          confirmText: "OK",
+        });
+        return;
+      }
+
+      // Get the current game details
+      const eventData = GAME_DATA[activeTab as keyof typeof GAME_DATA];
+
+      // Create the bet with actual data
+      const newBet = await createBet(
+        activeTab,
+        eventData.cutoffTime,
+        betDetails.map((detail) => ({
+          combination: detail.combination,
+          amount: Number(detail.amount),
+          is_rambol: detail.is_rambol,
+        }))
+      );
+
+      // Rest of your code...
+      const verifiedBet = await getBetById(newBet.id);
+
+      if (verifiedBet) {
+        setAlertConfig({
+          isVisible: true,
+          title: "Success",
+          message: `Bet #${verifiedBet.id} created successfully!`,
+          type: "success",
+          onConfirm: () => {
+            setAlertConfig((prev) => ({ ...prev, isVisible: false }));
+            setBetDetails([]);
+            setTotalBetValue(0);
+          },
+          confirmText: "OK",
+        });
+
+        const allUserBets = await getCurrentUserBets();
+        console.log("All user bets:", allUserBets);
+      }
+    } catch (error) {
+      console.error("Error creating/verifying bet:", {
+        error,
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      setAlertConfig({
+        isVisible: true,
+        title: "Error",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Failed to create bet. Please try again.",
+        type: "error",
+        onConfirm: () =>
+          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+        confirmText: "OK",
+      });
+    }
   };
 
   const handleSync = () => {
@@ -446,13 +551,103 @@ export default function DashboardScreen() {
     const unsubscribe = navigation.addListener("state", (event: any) => {
       const params =
         event.data.state?.routes?.[event.data.state.routes.length - 1]?.params;
-      if (params && "totalBetValue" in params) {
-        setTotalBetValue(Number(params.totalBetValue) || 0);
+      if (params) {
+        if ("totalBetValue" in params) {
+          setTotalBetValue(Number(params.totalBetValue) || 0);
+        }
+        if ("betDetails" in params) {
+          try {
+            const details = JSON.parse(params.betDetails);
+            setBetDetails(details);
+          } catch (e) {
+            console.error("Error parsing bet details:", e);
+          }
+        }
       }
     });
 
     return () => unsubscribe();
   }, [navigation]);
+
+  const [betDetails, setBetDetails] = useState<
+    Array<{
+      combination: string;
+      amount: number;
+      is_rambol: boolean;
+    }>
+  >([]);
+
+  const handleSubmitBetClick = () => {
+    if (betDetails.length === 0) {
+      setAlertConfig({
+        isVisible: true,
+        title: "Error",
+        message: "Please add some bets before submitting.",
+        type: "error",
+        onConfirm: () =>
+          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+        confirmText: "OK",
+      });
+      return;
+    }
+
+    setAlertConfig({
+      isVisible: true,
+      title: "Confirm Submission",
+      message: `Are you sure you want to submit ${
+        betDetails.length
+      } bet(s) with total amount of ₱${totalBetValue.toFixed(2)}?`,
+      type: "info",
+      onConfirm: handleSubmitBet,
+      onCancel: () => setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+      confirmText: "Submit",
+      cancelText: "Cancel",
+    });
+  };
+
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  // Combine auth checks into one effect
+  useEffect(() => {
+    async function initializeAuth() {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error || !user) {
+          router.replace("/(auth)/login");
+          return;
+        }
+
+        setUserId(user.id);
+      } catch (e) {
+        console.error("Auth error:", e);
+        router.replace("/(auth)/login");
+      } finally {
+        setIsAuthChecking(false);
+      }
+    }
+
+    initializeAuth();
+  }, []);
+
+  // Bet summary query
+  const { data: summary, isLoading: isSummaryLoading } = useQuery({
+    queryKey: ["betSummary", userId],
+    queryFn: async () => {
+      if (!userId) throw new Error("No user ID");
+      return await fetchBetSummary(userId);
+    },
+    enabled: !!userId,
+  });
+
+  // Show loading state while either auth is checking or summary is loading
+  if (isAuthChecking || isSummaryLoading) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <StyledSafeAreaView className="flex-1 p-4 bg-[#FDFDFD]">
@@ -538,6 +733,7 @@ export default function DashboardScreen() {
                   time={game.time}
                   onAddBet={() => handleAddBet(game.title)}
                   isLast={index === array.length - 1}
+                  isDisabled={isEventDisabled(activeTab)}
                 />
               )
             )}
@@ -552,7 +748,7 @@ export default function DashboardScreen() {
           </ThemedText>
           <ThemedView
             className="p-4 rounded-xl bg-[#6F13F5] hover:bg-[#6F13F5]/80 transition-colors items-center w-full"
-            onTouchEnd={handleSubmitBet}
+            onTouchEnd={handleSubmitBetClick}
           >
             <ThemedText className="text-base font-bold text-[#DFCAFD]">
               Submit Bet
