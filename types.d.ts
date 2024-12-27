@@ -7,18 +7,39 @@ declare module "*.gif";
 declare module "*.svg";
 
 declare module "react-native" {
-  import type { ColorValue, ComponentType } from "react-native";
+  import type { ComponentType } from "react";
+
+  export interface ViewProps {
+    className?: string;
+    children?: React.ReactNode;
+    style?: any;
+    onTouchEnd?: () => void;
+  }
+
+  export interface TextProps {
+    className?: string;
+    children?: React.ReactNode;
+    style?: any;
+  }
+
+  export interface TextInputProps extends ViewProps {
+    placeholder?: string;
+    placeholderTextColor?: string;
+    secureTextEntry?: boolean;
+    keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
+    autoCapitalize?: "none" | "sentences" | "words" | "characters";
+    value?: string;
+    onChangeText?: (text: string) => void;
+  }
+
+  export interface ScrollViewProps extends ViewProps {
+    contentContainerStyle?: any;
+  }
 
   export const View: ComponentType<ViewProps>;
   export const Text: ComponentType<TextProps>;
-  export const Image: ComponentType<ImageProps>;
-  export const Platform: {
-    OS: "ios" | "android" | "web";
-    select: <T extends Record<string, any>>(specifics: T) => T[keyof T];
-  };
-  export const StyleSheet: {
-    create: <T extends Record<string, any>>(styles: T) => T;
-  };
+  export const TextInput: ComponentType<TextInputProps>;
+  export const TouchableOpacity: ComponentType<ViewProps>;
   export const Alert: {
     alert: (
       title: string,
@@ -34,50 +55,23 @@ declare module "react-native" {
       }
     ) => void;
   };
+  export const StyleSheet: {
+    create: <T extends Record<string, any>>(styles: T) => T;
+  };
+}
 
-  export interface ViewProps {
-    className?: string;
-    children?: React.ReactNode;
-    style?: any;
-    onTouchEnd?: () => void;
-  }
-
-  export interface TextProps {
-    className?: string;
-    children?: React.ReactNode;
-    style?: any;
-  }
-
-  export interface ImageProps {
-    className?: string;
-    style?: any;
-    source: number | { uri: string };
-    resizeMode?: "cover" | "contain" | "stretch" | "center" | "repeat";
-    alt?: string;
-  }
-
-  export type ColorSchemeName = "light" | "dark" | null;
-  export function useColorScheme(): ColorSchemeName;
-
-  export interface TextInputProps extends ViewProps {
-    placeholder?: string;
-    placeholderTextColor?: string;
-    secureTextEntry?: boolean;
-    keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
-    autoCapitalize?: "none" | "sentences" | "words" | "characters";
-    value?: string;
-    onChangeText?: (text: string) => void;
-  }
-
-  export const TextInput: ComponentType<TextInputProps>;
-  export const TouchableOpacity: ComponentType<ViewProps>;
-
-  export interface ModalProps extends ViewProps {
-    animationType?: "none" | "slide" | "fade";
-    transparent?: boolean;
-    visible?: boolean;
-    onRequestClose?: () => void;
-  }
-
-  export const Modal: ComponentType<ModalProps>;
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  display_name?: string;
+  role: string;
+  balance: number;
+  percentage_l2: number;
+  percentage_l3: number;
+  winnings_l2: number;
+  winnings_l3: number;
+  parent_id?: string;
+  created_at: string;
+  updated_at: string;
 }

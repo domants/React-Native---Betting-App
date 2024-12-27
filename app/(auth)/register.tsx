@@ -1,42 +1,93 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, TextInput, TouchableOpacity, Alert } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
+import { styled } from "nativewind";
 
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
 import { supabase } from "@/lib/supabase";
+
+const StyledView = styled(View);
+const StyledSafeAreaView = styled(SafeAreaView);
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState("usher");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Fetch current user's role
+  useEffect(() => {
+    async function fetchCurrentUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from("Users")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        setCurrentUser(data);
+      }
+    }
+    fetchCurrentUser();
+  }, []);
+
+  // Get available roles based on current user's role
+  const getAvailableRoles = () => {
+    if (!currentUser) {
+      // If no user is logged in, only allow usher registration
+      return [{ label: "Usher", value: "usher" }];
+    }
+
+    switch (currentUser.role) {
+      case "admin":
+        return [{ label: "Coordinator", value: "coordinator" }];
+      case "coordinator":
+        return [
+          { label: "Sub-Coordinator", value: "sub_coordinator" },
+          { label: "Usher", value: "usher" },
+        ];
+      case "sub_coordinator":
+        return [{ label: "Usher", value: "usher" }];
+      default:
+        return []; // Ushers cannot create accounts
+    }
+  };
 
   const handleRegister = async () => {
-    if (!email || !username || !password) {
+    if (!email || !username || !password || !role) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
+    // Validate role creation permissions
+    const availableRoles = getAvailableRoles();
+    if (!availableRoles.some((r) => r.value === role)) {
+      Alert.alert("Error", "You don't have permission to create this role");
+      return;
+    }
+
     try {
-      // First sign up the user in auth with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            display_name: username, // Set display_name in user metadata
+            username,
+            role,
           },
         },
       });
 
       if (authError) throw authError;
 
-      // If auth signup successful, create user record in Users table
       if (authData.user) {
-        // First, check if a user with this username already exists
         const { data: existingUser, error: checkError } = await supabase
           .from("Users")
           .select("username")
@@ -48,13 +99,21 @@ export default function RegisterScreen() {
           return;
         }
 
-        // Create the user record
+        // Create the user record with both role columns
         const { error: userError } = await supabase.from("Users").insert([
           {
             id: authData.user.id,
             email: email,
             username: username,
             display_name: username,
+            role: role,
+            user_role: role,
+            balance: 0,
+            percentage_l2: 0,
+            percentage_l3: 0,
+            winnings_l2: 0,
+            winnings_l3: 0,
+            parent_id: currentUser?.id,
           },
         ]);
 
@@ -63,28 +122,10 @@ export default function RegisterScreen() {
           throw userError;
         }
 
-        // Update the user's metadata if needed
-        const { error: updateError } = await supabase.auth.updateUser({
-          data: { display_name: username },
-        });
-
-        if (updateError) {
-          console.error("Metadata update error:", updateError);
-        }
-
-        // Verify everything was set correctly
-        const { data: userData, error: verifyError } =
-          await supabase.auth.getUser();
-        if (verifyError) {
-          console.error("Verification error:", verifyError);
-        } else {
-          console.log("User metadata:", userData.user.user_metadata);
-        }
+        Alert.alert("Success", "Registration successful!", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
       }
-
-      Alert.alert("Success", "Registration successful!", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
     } catch (error) {
       if (error instanceof Error) {
         Alert.alert("Error", error.message);
@@ -97,25 +138,22 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1">
-      <View className="flex-1 p-6 pt-12">
-        <ThemedText className="text-2xl font-bold text-center mb-2">
+    <SafeAreaView className="flex-1 bg-white">
+      <View className="flex-1 p-6">
+        <ThemedText className="text-2xl font-bold mb-8">
           Create Account
         </ThemedText>
-        <ThemedText className="text-base text-gray-500 text-center mb-8">
-          Join BetMaster and start betting today
-        </ThemedText>
 
-        <View className="space-y-4">
+        <View className="space-y-6">
           <View className="space-y-2">
             <ThemedText className="text-base font-medium">Username</ThemedText>
             <TextInput
               className="bg-white p-4 rounded-lg text-base text-black border border-gray-200"
               placeholder="Enter your username"
               placeholderTextColor="#666"
-              autoCapitalize="none"
               value={username}
               onChangeText={setUsername}
+              autoCapitalize="none"
             />
           </View>
 
@@ -126,9 +164,9 @@ export default function RegisterScreen() {
               placeholder="Enter your email"
               placeholderTextColor="#666"
               keyboardType="email-address"
-              autoCapitalize="none"
               value={email}
               onChangeText={setEmail}
+              autoCapitalize="none"
             />
           </View>
 
@@ -156,12 +194,38 @@ export default function RegisterScreen() {
             </View>
           </View>
 
+          <View className="space-y-2">
+            <ThemedText className="text-base font-medium">Role</ThemedText>
+            <View className="border border-gray-200 rounded-lg">
+              <Picker
+                selectedValue={role}
+                onValueChange={(itemValue: string) => setRole(itemValue)}
+                style={{
+                  height: 50,
+                  width: "100%",
+                  marginHorizontal: -8,
+                }}
+                itemStyle={{ fontSize: 16 }}
+                enabled={getAvailableRoles().length > 0}
+              >
+                {getAvailableRoles().map((role) => (
+                  <Picker.Item
+                    key={role.value}
+                    label={role.label}
+                    value={role.value}
+                    color="#000"
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
           <TouchableOpacity
-            className="bg-black p-4 rounded-lg items-center mt-2"
+            className="bg-[#6F13F5] p-4 rounded-lg items-center mt-4"
             onPress={handleRegister}
           >
             <ThemedText className="text-white text-base font-semibold">
-              Sign Up
+              Create Account
             </ThemedText>
           </TouchableOpacity>
 
@@ -169,8 +233,8 @@ export default function RegisterScreen() {
             <ThemedText className="text-gray-500">
               Already have an account?{" "}
             </ThemedText>
-            <TouchableOpacity onPress={handleLogin}>
-              <ThemedText className="text-blue-500 font-medium">
+            <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
+              <ThemedText className="text-[#6F13F5] font-medium">
                 Log in
               </ThemedText>
             </TouchableOpacity>

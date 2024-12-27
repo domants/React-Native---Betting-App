@@ -57,10 +57,15 @@ export interface User {
   email: string;
   username: string;
   display_name?: string;
+  role: "admin" | "coordinator" | "sub_coordinator" | "usher";
+  balance: number;
+  percentage_l2: number;
+  percentage_l3: number;
+  winnings_l2: number;
+  winnings_l3: number;
+  parent_id?: string;
   created_at: string;
   updated_at: string;
-  role: string;
-  balance: number;
 }
 
 export interface UserBet {
@@ -83,7 +88,29 @@ export interface BetDetail {
   created_at: string;
 }
 
-// Add this helper function at the top of the file
+// New interfaces for admin functionality
+export interface GameResult {
+  id: string;
+  game_type: "last_two" | "swertres";
+  draw_time: string;
+  winning_number: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface CoordinatorAccount {
+  id: string;
+  user_id: string;
+  created_by: string;
+  percentage_last_two: number;
+  percentage_swertres: number;
+  winnings_last_two: number;
+  winnings_swertres: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// helper function at the top of the file
 function convertTimeToTimestamp(timeStr: string): string {
   const today = new Date();
   const [time, period] = timeStr.split(" ");
@@ -294,4 +321,153 @@ export async function fetchBetSummary(userId: string): Promise<BetSummary> {
   if (!data) throw new Error("No data found");
 
   return data as BetSummary;
+}
+
+// Admin specific functions
+export async function createCoordinator(data: {
+  username: string;
+  password: string;
+  percentageL2: number;
+  percentageL3: number;
+  winningsL2: number;
+  winningsL3: number;
+}) {
+  // First create the auth user
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: `${data.username}@example.com`,
+    password: data.password,
+  });
+
+  if (authError) throw authError;
+
+  // Then create the coordinator profile
+  const { data: coordinator, error: profileError } = await supabase
+    .from("users")
+    .insert({
+      id: authData.user?.id,
+      username: data.username,
+      email: `${data.username}@example.com`,
+      role: "coordinator",
+      percentage_l2: data.percentageL2,
+      percentage_l3: data.percentageL3,
+      winnings_l2: data.winningsL2,
+      winnings_l3: data.winningsL3,
+    })
+    .select()
+    .single();
+
+  if (profileError) {
+    // Cleanup auth user if profile creation fails
+    await supabase.auth.admin.deleteUser(authData.user?.id as string);
+    throw profileError;
+  }
+
+  return coordinator;
+}
+
+export async function addGameResult(
+  result: Omit<GameResult, "id" | "created_at">
+) {
+  const { data: newResult, error } = await supabase
+    .from("game_results")
+    .insert(result)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return newResult;
+}
+
+export async function updateGameLimits(
+  gameType: "last_two" | "swertres",
+  limits: { max_bet: number; number_limits: { [key: string]: number } }
+) {
+  const { data: updatedLimits, error } = await supabase
+    .from("game_limits")
+    .upsert({
+      game_type: gameType,
+      ...limits,
+      updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return updatedLimits;
+}
+
+export async function getDailyBets(date: string) {
+  const { data: bets, error } = await supabase
+    .from("user_bets")
+    .select(
+      `
+      *,
+      bet_details(*),
+      users!inner(username, role)
+    `
+    )
+    .gte("created_at", `${date}T00:00:00`)
+    .lte("created_at", `${date}T23:59:59`);
+
+  if (error) throw error;
+  return bets;
+}
+
+export async function getCoordinators() {
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("role", "coordinator");
+
+  if (error) throw error;
+  return data;
+}
+
+// Add this helper function to check user roles
+export async function getCurrentUser() {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error("Not authenticated");
+  }
+
+  const { data: userData, error: userError } = await supabase
+    .from("Users")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  if (userError || !userData) {
+    throw new Error("User profile not found");
+  }
+
+  return userData;
+}
+
+// Add role check helper functions
+export function canCreateCoordinator(userRole: string) {
+  return userRole === "admin";
+}
+
+export function canCreateSubCoordinator(userRole: string) {
+  return ["admin", "coordinator"].includes(userRole);
+}
+
+export function canCreateUsher(userRole: string) {
+  return ["admin", "coordinator", "sub_coordinator"].includes(userRole);
+}
+
+export function canViewAllBets(userRole: string) {
+  return ["admin", "coordinator", "sub_coordinator"].includes(userRole);
+}
+
+export function canAddBets(userRole: string) {
+  return ["coordinator", "sub_coordinator", "usher"].includes(userRole);
+}
+
+export function canManageGameSettings(userRole: string) {
+  return userRole === "admin";
 }
