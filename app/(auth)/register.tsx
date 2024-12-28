@@ -4,10 +4,13 @@ import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import { Dropdown } from "react-native-element-dropdown";
 import { styled } from "nativewind";
 
 import { ThemedText } from "@/components/ThemedText";
 import { supabase } from "@/lib/supabase";
+
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -38,7 +41,7 @@ export default function RegisterScreen() {
     fetchCurrentUser();
   }, []);
 
-  // Get available roles based on current user's role
+  // Get available roles
   const getAvailableRoles = () => {
     if (!currentUser) {
       // If no user is logged in, only allow usher registration
@@ -47,14 +50,26 @@ export default function RegisterScreen() {
 
     switch (currentUser.role) {
       case "admin":
-        return [{ label: "Coordinator", value: "coordinator" }];
+        return [
+          { label: "Admin", value: "admin" },
+          { label: "Coordinator", value: "coordinator" },
+          { label: "Sub Coordinator", value: "sub_coordinator" },
+          { label: "Usher", value: "usher" },
+        ];
       case "coordinator":
         return [
-          { label: "Sub-Coordinator", value: "sub_coordinator" },
+          { label: "Admin", value: "admin" },
+          { label: "Coordinator", value: "coordinator" },
+          { label: "Sub Coordinator", value: "sub_coordinator" },
           { label: "Usher", value: "usher" },
         ];
       case "sub_coordinator":
-        return [{ label: "Usher", value: "usher" }];
+        return [
+          { label: "Admin", value: "admin" },
+          { label: "Coordinator", value: "coordinator" },
+          { label: "Sub Coordinator", value: "sub_coordinator" },
+          { label: "Usher", value: "usher" },
+        ];
       default:
         return []; // Ushers cannot create accounts
     }
@@ -196,37 +211,42 @@ export default function RegisterScreen() {
 
           <View className="space-y-2">
             <ThemedText className="text-base font-medium">Role</ThemedText>
-            <View className="border border-gray-200 rounded-lg">
-              <Picker
-                selectedValue={role}
-                onValueChange={(itemValue: string) => setRole(itemValue)}
-                style={{
-                  height: 50,
-                  width: "100%",
-                  marginHorizontal: -8,
-                }}
-                itemStyle={{ fontSize: 16 }}
-                enabled={getAvailableRoles().length > 0}
-              >
-                {getAvailableRoles().map((role) => (
-                  <Picker.Item
-                    key={role.value}
-                    label={role.label}
-                    value={role.value}
-                    color="#000"
-                  />
-                ))}
-              </Picker>
-            </View>
+            <Dropdown
+              style={{
+                height: 50,
+                borderColor: "#E5E7EB",
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 16,
+              }}
+              placeholderStyle={{
+                fontSize: 16,
+                color: "#666",
+              }}
+              selectedTextStyle={{
+                fontSize: 16,
+                color: "#000",
+              }}
+              data={getAvailableRoles()}
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              placeholder="Select role"
+              value={role}
+              onChange={(item) => {
+                setRole(item.value);
+              }}
+            />
           </View>
 
           <TouchableOpacity
-            className="bg-[#6F13F5] p-4 rounded-lg items-center mt-4"
+            className="bg-[#6F13F5] p-4 rounded-lg items-center mt-4 flex-row justify-center"
             onPress={handleRegister}
           >
-            <ThemedText className="text-white text-base font-semibold">
+            <ThemedText className="text-white text-base font-semibold mr-2">
               Create Account
             </ThemedText>
+            <MaterialCommunityIcons name="account" size={24} color="white" />
           </TouchableOpacity>
 
           <View className="flex-row justify-center mt-6">
