@@ -249,6 +249,7 @@ export default function RegisterScreen() {
             <MaterialCommunityIcons name="account" size={24} color="white" />
           </TouchableOpacity>
 
+          {/* 
           <View className="flex-row justify-center mt-6">
             <ThemedText className="text-gray-500">
               Already have an account?{" "}
@@ -259,6 +260,7 @@ export default function RegisterScreen() {
               </ThemedText>
             </TouchableOpacity>
           </View>
+          */}
         </View>
       </View>
     </SafeAreaView>

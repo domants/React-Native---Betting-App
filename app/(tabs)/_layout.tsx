@@ -1,4 +1,5 @@
-import { Tabs } from "expo-router";
+import { Tabs, router } from "expo-router";
+//@ts-ignore
 import { Platform } from "react-native";
 import { useEffect, useState } from "react";
 import { useRouter, useNavigation } from "expo-router";
@@ -6,11 +7,19 @@ import { useRouter, useNavigation } from "expo-router";
 import { IconSymbol } from "@/components/ui/IconSymbol";
 import { Colors, Theme } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
+//icons
+import MaterialIcons from "@expo/vector-icons/MaterialIcons"; //dashboard
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6"; //bets
+import Foundation from "@expo/vector-icons/Foundation"; //results
+import Ionicons from "@expo/vector-icons/Ionicons"; //trophy
+//end of icons
 export default function TabLayout() {
   const colorScheme = useColorScheme() as Theme;
   const [totalBetValue, setTotalBetValue] = useState(0);
   const navigation = useNavigation();
+  const { user } = useCurrentUser();
 
   // Handle parameter updates from new-bet screen
   useEffect(() => {
@@ -24,6 +33,18 @@ export default function TabLayout() {
 
     return () => unsubscribe();
   }, [navigation]);
+
+  // If user is admin, redirect to admin dashboard
+  useEffect(() => {
+    if (user?.role === "admin") {
+      router.replace("/(admin)/dashboard");
+    }
+  }, [user]);
+
+  // If user is admin, don't show regular tabs
+  if (user?.role === "admin") {
+    return null;
+  }
 
   return (
     <Tabs
@@ -54,16 +75,17 @@ export default function TabLayout() {
         options={{
           title: "Dashboard",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="house.fill" color={color} />
+            <MaterialIcons name="dashboard" size={24} color={color} />
           ),
         }}
       />
+
       <Tabs.Screen
         name="bets"
         options={{
           title: "Bets",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="ticket.fill" color={color} />
+            <FontAwesome6 name="money-check" size={24} color={color} />
           ),
         }}
       />
@@ -72,7 +94,7 @@ export default function TabLayout() {
         options={{
           title: "Results",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="list.bullet" color={color} />
+            <Foundation name="results" size={24} color={color} />
           ),
         }}
       />
@@ -81,7 +103,7 @@ export default function TabLayout() {
         options={{
           title: "Winners",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="trophy.fill" color={color} />
+            <Ionicons name="trophy-sharp" size={24} color={color} />
           ),
         }}
       />

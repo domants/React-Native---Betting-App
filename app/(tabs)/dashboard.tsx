@@ -661,18 +661,6 @@ export default function DashboardScreen() {
               {isOnline ? "Online" : "Offline"}
             </ThemedText>
           </StyledView>
-          {user?.role !== "usher" && (
-            <TouchableOpacity
-              className="items-center"
-              onPress={() => router.push("/(auth)/register")}
-            >
-              <MaterialCommunityIcons
-                name="account-plus"
-                size={25}
-                color="#6F13F5"
-              />
-            </TouchableOpacity>
-          )}
         </StyledView>
       </StyledView>
 
