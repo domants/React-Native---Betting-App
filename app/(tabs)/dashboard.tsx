@@ -26,6 +26,9 @@ import {
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 
+//cut off time before the event - in mnts
+const CUTOFF_BEFORE_EVENT = 10;
+
 interface FinancialCardProps {
   title: string;
   value: string;
@@ -142,101 +145,85 @@ function GameItem({
 }
 
 function getCurrentPhTime() {
-  const options: Intl.DateTimeFormatOptions = {
+  const now = new Date();
+  return now.toLocaleString("en-US", {
     timeZone: "Asia/Manila",
-    hour: "numeric" as const,
-    minute: "numeric" as const,
+    hour: "numeric",
+    minute: "numeric",
     hour12: true,
-  };
-  return new Date().toLocaleString("en-US", options);
+  });
 }
 
-function isEventAvailable(
-  eventTime: string,
-  shouldLog: boolean = false
-): boolean {
-  // Get current time in Manila in 12-hour format (e.g., "2:30 PM")
-  const currentTimeStr = getCurrentPhTime();
+function parseTime(timeStr: string): number {
+  try {
+    // Remove any extra spaces and ensure proper format
+    const cleanTimeStr = timeStr.trim();
+    const [time, period] = cleanTimeStr.split(/\s+/);
+    const [hoursStr, minutesStr] = time.split(":");
 
-  // Parse current time - handle the case where PM/AM might be at the end
-  const currentTimeParts = currentTimeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!currentTimeParts) return false;
+    let hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
 
-  let currentHour = parseInt(currentTimeParts[1]);
-  let currentMinute = parseInt(currentTimeParts[2]);
-  const currentModifier = currentTimeParts[3].toUpperCase();
+    // Validate parsed values
+    if (isNaN(hours) || isNaN(minutes)) {
+      console.error("Invalid time format:", timeStr);
+      return 0;
+    }
 
-  // Parse cutoff time
-  const cutoffTimeParts = eventTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!cutoffTimeParts) return false;
+    // Convert to 24-hour format
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
 
-  let cutoffHour = parseInt(cutoffTimeParts[1]);
-  let cutoffMinute = parseInt(cutoffTimeParts[2]);
-  const cutoffModifier = cutoffTimeParts[3].toUpperCase();
+    return hours * 60 + minutes;
+  } catch (error) {
+    console.error("Error parsing time:", timeStr, error);
+    return 0;
+  }
+}
 
-  // Debug logs for initial values
-  if (shouldLog) {
-    console.log(
-      "Raw Current Time:",
-      currentTimeStr,
-      `(${currentHour}:${currentMinute} ${currentModifier})`
-    );
-    console.log(
-      "Raw Cutoff Time:",
-      eventTime,
-      `(${cutoffHour}:${cutoffMinute} ${cutoffModifier})`
-    );
+function isEventAvailable(eventTime: string): boolean {
+  const currentTime = getCurrentPhTime();
+  const currentMinutes = parseTime(currentTime);
+  const eventMinutes = parseTime(eventTime);
+
+  // for debugging
+  /*
+  console.log({
+    currentTime,
+    eventTime,
+    currentMinutes,
+    eventMinutes,
+    cutoffMinutes: eventMinutes - CUTOFF_BEFORE_EVENT,
+  });
+*/
+  // If current time is before event time
+  if (eventMinutes > currentMinutes) {
+    return currentMinutes <= eventMinutes - CUTOFF_BEFORE_EVENT;
   }
 
-  // Convert to 24-hour format
-  if (currentModifier === "PM" && currentHour !== 12) {
-    currentHour += 12;
-  } else if (currentModifier === "AM" && currentHour === 12) {
-    currentHour = 0;
-  }
-
-  if (cutoffModifier === "PM" && cutoffHour !== 12) {
-    cutoffHour += 12;
-  } else if (cutoffModifier === "AM" && cutoffHour === 12) {
-    cutoffHour = 0;
-  }
-
-  const currentMins = currentHour * 60 + currentMinute;
-  const cutoffMins = cutoffHour * 60 + cutoffMinute;
-
-  if (shouldLog) {
-    console.log(
-      `24h format - Current: ${currentHour}:${currentMinute} (${currentMins} mins)`
-    );
-    console.log(
-      `24h format - Cutoff: ${cutoffHour}:${cutoffMinute} (${cutoffMins} mins)`
-    );
-    console.log(`Comparing minutes: ${currentMins} <= ${cutoffMins}`);
-  }
-
-  return currentMins <= cutoffMins;
+  return false;
 }
 
 const GAME_DATA = {
   "11AM Events": {
-    cutoffTime: "10:00 AM",
+    eventTime: "11:00 AM",
     games: [
-      { title: "11AM SWERTRES", time: "10:45 AM" },
-      { title: "11AM LAST TWO", time: "10:45 AM" },
+      { title: "11AM SWERTRES", time: "11:00 AM" },
+      { title: "11AM LAST TWO", time: "11:00 AM" },
     ],
   },
   "5PM Events": {
-    cutoffTime: "4:00 PM",
+    eventTime: "5:00 PM",
     games: [
-      { title: "5PM SWERTRES", time: "04:45 PM" },
-      { title: "5PM LAST TWO", time: "04:45 PM" },
+      { title: "5PM SWERTRES", time: "5:00 PM" },
+      { title: "5PM LAST TWO", time: "5:00 PM" },
     ],
   },
   "9PM Events": {
-    cutoffTime: "8:00 PM",
+    eventTime: "9:00 PM",
     games: [
-      { title: "9PM SWERTRES", time: "08:45 PM" },
-      { title: "9PM LAST TWO", time: "08:45 PM" },
+      { title: "9PM SWERTRES", time: "9:00 PM" },
+      { title: "9PM LAST TWO", time: "9:00 PM" },
     ],
   },
 };
@@ -363,18 +350,15 @@ export default function DashboardScreen() {
 
   const isEventDisabled = (tabName: string) => {
     const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
-    return !isEventAvailable(eventData.cutoffTime, false);
+    return !isEventAvailable(eventData.eventTime);
   };
 
   const handleTabPress = (tabName: string) => {
     if (isEventDisabled(tabName)) {
-      const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
-      const isAvailable = isEventAvailable(eventData.cutoffTime, true);
       setAlertConfig({
         isVisible: true,
         title: "Event Unavailable",
-        message:
-          "This event's betting period has ended. Please wait for the next schedule.",
+        message: `Betting for this event is closed. Betting closes ${CUTOFF_BEFORE_EVENT} minutes before the event time.`,
         type: "warning",
         onConfirm: () =>
           setAlertConfig((prev) => ({ ...prev, isVisible: false })),
@@ -389,12 +373,11 @@ export default function DashboardScreen() {
 
   const handleAddBet = (gameTitle: string) => {
     const eventData = GAME_DATA[activeTab as keyof typeof GAME_DATA];
-    if (!isEventAvailable(eventData.cutoffTime)) {
+    if (!isEventAvailable(eventData.eventTime)) {
       setAlertConfig({
         isVisible: true,
         title: "Betting Closed",
-        message:
-          "This event's betting period has ended. Please wait for the next schedule.",
+        message: `This event's betting period has ended. Betting closes ${CUTOFF_BEFORE_EVENT} minutes before the event time.`,
         type: "warning",
         onConfirm: () =>
           setAlertConfig((prev) => ({ ...prev, isVisible: false })),
@@ -408,7 +391,7 @@ export default function DashboardScreen() {
       pathname: "/(tabs)/new-bet",
       params: {
         gameTitle,
-        eventTime: eventData.cutoffTime,
+        eventTime: eventData.eventTime,
       },
     });
   };
@@ -452,7 +435,7 @@ export default function DashboardScreen() {
       // Create the bet with actual data
       const newBet = await createBet(
         activeTab,
-        eventData.cutoffTime,
+        eventData.eventTime,
         betDetails.map((detail) => ({
           combination: detail.combination,
           amount: Number(detail.amount),
