@@ -1,5 +1,5 @@
 //@ts-ignore
-import { View, Alert, Modal } from "react-native";
+import { View, Alert, Modal, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
@@ -9,7 +9,7 @@ import { router } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { fetchBetSummary, type BetSummary } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
-
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Theme } from "@/constants/Colors";
@@ -22,6 +22,7 @@ import {
   getBetById,
   getCurrentUserBets,
 } from "@/lib/supabase";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -628,6 +629,8 @@ export default function DashboardScreen() {
     enabled: !!userId,
   });
 
+  const { user } = useCurrentUser();
+
   // Show loading state while either auth is checking or summary is loading
   if (isAuthChecking || isSummaryLoading) {
     return <LoadingSpinner />;
@@ -643,19 +646,33 @@ export default function DashboardScreen() {
           </ThemedText>
           <ThemedText className="text-sm text-[#867F91]">{date}</ThemedText>
         </StyledView>
-        <StyledView className="flex-row items-center">
-          <StyledView
-            className={`w-2 h-2 rounded-full ${
-              isOnline ? "bg-green-500" : "bg-red-500"
-            } mr-1.5`}
-          />
-          <ThemedText
-            className={`text-sm ${
-              isOnline ? "text-green-500" : "text-red-500"
-            }`}
-          >
-            {isOnline ? "Online" : "Offline"}
-          </ThemedText>
+        <StyledView>
+          <StyledView className="flex-row items-center mb-2">
+            <StyledView
+              className={`w-2 h-2 rounded-full ${
+                isOnline ? "bg-green-500" : "bg-red-500"
+              } mr-1.5`}
+            />
+            <ThemedText
+              className={`text-sm ${
+                isOnline ? "text-green-500" : "text-red-500"
+              }`}
+            >
+              {isOnline ? "Online" : "Offline"}
+            </ThemedText>
+          </StyledView>
+          {user?.role !== "usher" && (
+            <TouchableOpacity
+              className="items-center"
+              onPress={() => router.push("/(auth)/register")}
+            >
+              <MaterialCommunityIcons
+                name="account-plus"
+                size={25}
+                color="#6F13F5"
+              />
+            </TouchableOpacity>
+          )}
         </StyledView>
       </StyledView>
 

@@ -151,7 +151,6 @@ export default function LoginScreen() {
               onChangeText={setIdentifier}
             />
           </View>
-
           <View className="space-y-2">
             <ThemedText className="text-base font-medium">Password</ThemedText>
             <TextInput
@@ -163,7 +162,6 @@ export default function LoginScreen() {
               onChangeText={setPassword}
             />
           </View>
-
           <TouchableOpacity
             className="bg-black p-4 rounded-lg items-center mt-2"
             onPress={handleLogin}
@@ -174,12 +172,13 @@ export default function LoginScreen() {
             </ThemedText>
           </TouchableOpacity>
 
+          {/*
           <TouchableOpacity onPress={handleForgotPassword}>
             <ThemedText className="text-blue-500 text-center text-sm">
               Forgot password?
             </ThemedText>
           </TouchableOpacity>
-
+          
           <View className="flex-row justify-center mt-6">
             <ThemedText className="text-gray-500">
               Don't have an account?{" "}
@@ -190,6 +189,8 @@ export default function LoginScreen() {
               </ThemedText>
             </TouchableOpacity>
           </View>
+          
+          */}
         </View>
       </View>
     </SafeAreaView>
