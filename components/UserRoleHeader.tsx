@@ -31,7 +31,7 @@ export function UserRoleHeader({ username, role }: UserRoleHeaderProps) {
       <StyledView className="flex-row justify-between items-center">
         <ThemedText className="text-sm text-gray-500">@{username}</ThemedText>
         <ThemedText className="text-sm font-medium text-[#6F13F5]">
-          Role: {role}
+          {role}
         </ThemedText>
       </StyledView>
     </ThemedView>
