@@ -5,12 +5,19 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
+        headerTitle: "",
+        presentation: "modal",
       }}
     >
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="reset-password" />
-      <Stack.Screen name="update-password" />
+      <Stack.Screen
+        name="register"
+        options={{
+          headerShown: false,
+          headerTitle: "",
+          animation: "slide_from_right",
+        }}
+      />
+      {/* other screens */}
     </Stack>
   );
 }

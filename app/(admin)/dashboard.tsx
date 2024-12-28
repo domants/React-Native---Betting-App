@@ -64,37 +64,37 @@ export default function AdminDashboard() {
       title: "Account Registration",
       description: "Register new accounts",
       icon: "person-add",
-      route: "/(auth)/register",
+      route: "/(auth)/register" as const,
     },
     {
       title: "Percentage & Winnings",
       description: "Manage percentage & winnings",
       icon: "percent",
-      route: "/(admin)/percentage",
+      route: "/(admin)/percentage" as const,
     },
     {
       title: "Draw Results",
       description: "Manage draw results",
       icon: "emoji-events",
-      route: "/(admin)/results",
+      route: "/(admin)/results" as const,
     },
     {
       title: "Daily Bets",
       description: "View and manage daily bets",
       icon: "today",
-      route: "/(admin)/daily-bets",
+      route: "/(admin)/daily-bets" as const,
     },
     {
       title: "Bet History",
       description: "View betting history",
       icon: "history",
-      route: "/(admin)/history",
+      route: "/(admin)/history" as const,
     },
     {
       title: "Bet Limits",
       description: "Set betting limits",
       icon: "block",
-      route: "/(admin)/limits",
+      route: "/(admin)/limits" as const,
     },
   ] as const;
 
