@@ -58,18 +58,11 @@ export default function RegisterScreen() {
         ];
       case "coordinator":
         return [
-          { label: "Admin", value: "admin" },
-          { label: "Coordinator", value: "coordinator" },
           { label: "Sub Coordinator", value: "sub_coordinator" },
           { label: "Usher", value: "usher" },
         ];
       case "sub_coordinator":
-        return [
-          { label: "Admin", value: "admin" },
-          { label: "Coordinator", value: "coordinator" },
-          { label: "Sub Coordinator", value: "sub_coordinator" },
-          { label: "Usher", value: "usher" },
-        ];
+        return [{ label: "Usher", value: "usher" }];
       default:
         return []; // Ushers cannot create accounts
     }

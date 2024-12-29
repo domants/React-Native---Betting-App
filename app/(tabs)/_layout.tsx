@@ -2,16 +2,14 @@ import { Tabs, router } from "expo-router";
 //@ts-ignore
 import { Platform } from "react-native";
 import { useEffect, useState } from "react";
-import { useRouter, useNavigation } from "expo-router";
+import { useNavigation } from "expo-router";
 
-import { IconSymbol } from "@/components/ui/IconSymbol";
 import { Colors, Theme } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 //icons
-import MaterialIcons from "@expo/vector-icons/MaterialIcons"; //dashboard
-import FontAwesome6 from "@expo/vector-icons/FontAwesome6"; //bets
+import MaterialIcons from "@expo/vector-icons/MaterialIcons"; //dashboard and settings
 import Foundation from "@expo/vector-icons/Foundation"; //results
 import Ionicons from "@expo/vector-icons/Ionicons"; //trophy
 //end of icons
@@ -83,9 +81,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="bets"
         options={{
-          title: "Bets",
+          title: "Management",
           tabBarIcon: ({ color }) => (
-            <FontAwesome6 name="money-check" size={24} color={color} />
+            <MaterialIcons name="settings" size={24} color={color} />
           ),
         }}
       />

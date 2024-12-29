@@ -9,7 +9,6 @@ import { router } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { fetchBetSummary, type BetSummary } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Theme } from "@/constants/Colors";
