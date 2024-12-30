@@ -27,7 +27,7 @@ const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 
 //cut off time before the event - in mnts
-const CUTOFF_BEFORE_EVENT = 10;
+const CUTOFF_BEFORE_EVENT = 20;
 
 interface FinancialCardProps {
   title: string;

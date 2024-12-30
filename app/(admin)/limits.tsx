@@ -6,7 +6,6 @@ import { useState } from "react";
 import { router } from "expo-router";
 
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -20,7 +19,7 @@ export default function LimitsScreen() {
       last2Limit,
       d3Limit,
     });
-    // Add your save logic here
+    // save logic here... for later
   };
 
   return (

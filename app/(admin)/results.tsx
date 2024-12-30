@@ -14,7 +14,7 @@ const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 
 const timeSlots = [
-  { label: "2:00 PM", value: "14:00" },
+  { label: "11:00 AM", value: "11:00" },
   { label: "5:00 PM", value: "17:00" },
   { label: "9:00 PM", value: "21:00" },
 ];

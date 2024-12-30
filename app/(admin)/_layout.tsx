@@ -15,6 +15,7 @@ export default function AdminLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
+          headerTitle: "Admin Dashboard",
         }}
       >
         <Stack.Screen name="dashboard" />

@@ -6,6 +6,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { router } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Dropdown } from "react-native-element-dropdown";
 
 import { ThemedText } from "@/components/ThemedText";
 
@@ -24,12 +25,20 @@ interface BetHistoryEntry {
   result: "Win" | "Loss";
   winnings: string;
   date: string;
+  time: string;
 }
+
+const timeData = [
+  { label: "11:00 AM", value: "11AM" },
+  { label: "5:00 PM", value: "5PM" },
+  { label: "9:00 PM", value: "9PM" },
+];
 
 export default function BetHistoryScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
+  const [selectedTime, setSelectedTime] = useState("");
 
   const historyData: BetHistoryEntry[] = [
     {
@@ -39,6 +48,7 @@ export default function BetHistoryScreen() {
       result: "Win",
       winnings: "200",
       date: "December 28, 2024",
+      time: "11AM",
     },
     {
       type: "3D",
@@ -47,6 +57,7 @@ export default function BetHistoryScreen() {
       result: "Loss",
       winnings: "0",
       date: "December 28, 2024",
+      time: "5PM",
     },
     {
       type: "L2",
@@ -55,15 +66,56 @@ export default function BetHistoryScreen() {
       result: "Win",
       winnings: "300",
       date: "December 28, 2024",
+      time: "9PM",
+    },
+    {
+      type: "L2",
+      number: "45",
+      amount: "300",
+      result: "Win",
+      winnings: "600",
+      date: "December 28, 2024",
+      time: "11AM",
+    },
+    {
+      type: "3D",
+      number: "789",
+      amount: "500",
+      result: "Loss",
+      winnings: "0",
+      date: "December 28, 2024",
+      time: "5PM",
+    },
+    {
+      type: "L2",
+      number: "12",
+      amount: "250",
+      result: "Win",
+      winnings: "500",
+      date: "December 28, 2024",
+      time: "9PM",
+    },
+    {
+      type: "3D",
+      number: "234",
+      amount: "400",
+      result: "Loss",
+      winnings: "0",
+      date: "December 28, 2024",
+      time: "11AM",
     },
   ];
 
   //filter data
   const filteredData = historyData.filter((entry) => {
-    if (activeFilter === "All") return true;
-    if (activeFilter === "Wins") return entry.result === "Win";
-    if (activeFilter === "Losses") return entry.result === "Loss";
-    return true;
+    const matchesFilter =
+      activeFilter === "All" ||
+      (activeFilter === "Wins" && entry.result === "Win") ||
+      (activeFilter === "Losses" && entry.result === "Loss");
+
+    const matchesTime = !selectedTime || entry.time === selectedTime;
+
+    return matchesFilter && matchesTime;
   });
 
   const FilterTab = ({ title }: { title: FilterType }) => {
@@ -108,6 +160,25 @@ export default function BetHistoryScreen() {
         </StyledView>
       </TouchableOpacity>
     );
+  };
+
+  const dropdownStyle = {
+    height: 50,
+    borderColor: "#E5E7EB",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "white",
+  };
+
+  const placeholderStyle = {
+    fontSize: 16,
+    color: "#666",
+  };
+
+  const selectedTextStyle = {
+    fontSize: 16,
+    color: "#000",
   };
 
   return (
@@ -157,6 +228,27 @@ export default function BetHistoryScreen() {
           <FilterTab title="All" />
           <FilterTab title="Wins" />
           <FilterTab title="Losses" />
+        </StyledView>
+
+        {/* Filter Section */}
+        <StyledView className="mb-4">
+          <ThemedText className="text-base mb-2">Filter by Time</ThemedText>
+          <Dropdown
+            style={dropdownStyle}
+            placeholderStyle={placeholderStyle}
+            selectedTextStyle={selectedTextStyle}
+            data={timeData}
+            maxHeight={300}
+            labelField="label"
+            valueField="value"
+            placeholder="Select time"
+            value={selectedTime}
+            onChange={(item) => {
+              setSelectedTime(item.value);
+              // Add your filter logic here
+              console.log("Selected time:", item.value);
+            }}
+          />
         </StyledView>
 
         {/* History Cards */}

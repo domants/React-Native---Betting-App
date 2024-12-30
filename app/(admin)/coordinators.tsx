@@ -1,15 +1,13 @@
-import { View, TextInput, Alert } from "react-native";
+import { Alert } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
-import { MaterialIcons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { createCoordinator, getCoordinators } from "@/lib/supabase";
 
-const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 const StyledScrollView = styled(ScrollView);
 
@@ -39,10 +37,6 @@ export default function CoordinatorsScreen() {
       Alert.alert("Error", error.message);
     },
   });
-
-  const handleCreateCoordinator = (data: CoordinatorFormData) => {
-    createCoordinatorMutation.mutate(data);
-  };
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
