@@ -12,9 +12,13 @@ import NetInfo from "@react-native-community/netinfo";
   },
 };
 
-export const supabaseUrl = "https://koclapmkkvjxfcdvywrd.supabase.co";
-const supabaseAnonKey =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvY2xhcG1ra3ZqeGZjZHZ5d3JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzMTg2OTUsImV4cCI6MjA0OTg5NDY5NX0.u8sQNk_nLU5E5SMOkNVMDywiwmWLHHEaEbIP3t8d8yE";
+// environment variables
+export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing Supabase environment variables");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -470,4 +474,26 @@ export function canAddBets(userRole: string) {
 
 export function canManageGameSettings(userRole: string) {
   return userRole === "admin";
+}
+
+// Add this new function
+export async function assignPercentage(data: {
+  userId: string;
+  gameType: "L2" | "3D";
+  percentage: number;
+  winnings: number;
+}) {
+  const { data: result, error } = await supabase
+    .from("users")
+    .update({
+      [`percentage_${data.gameType.toLowerCase()}`]: data.percentage,
+      [`winnings_${data.gameType.toLowerCase()}`]: data.winnings,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result;
 }

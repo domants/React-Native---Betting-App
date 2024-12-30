@@ -57,13 +57,13 @@ export default function ManagementScreen() {
       title: "Assign Percentage",
       description: "Set percentage & winnings for L2 & 3D",
       icon: "percent",
-      route: "/assign-percentage",
+      route: "/(coordinator)/assign-percentage",
     },
     {
       title: "View Bets",
       description: "View all placed bets",
       icon: "list",
-      route: "/view-bets",
+      route: "/(coordinator)/view-bets",
     },
     {
       title: "Place Bet",
