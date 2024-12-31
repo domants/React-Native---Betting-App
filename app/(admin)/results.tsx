@@ -7,6 +7,7 @@ import { useState, useRef } from "react";
 import { router } from "expo-router";
 import { Dropdown } from "react-native-element-dropdown";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import Modal from "react-native-modal";
 
 import { ThemedText } from "@/components/ThemedText";
 
@@ -67,6 +68,7 @@ export default function ResultsScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [filterMonth, setFilterMonth] = useState(new Date());
   const scrollViewRef = useRef(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   const timeOptions = [
     { label: "All", value: "" },
@@ -74,6 +76,14 @@ export default function ResultsScreen() {
     { label: "5 PM", value: "5 PM" },
     { label: "9 PM", value: "9 PM" },
   ];
+
+  const handleCloseModal = () => {
+    setIsModalVisible(false);
+    setSelectedSchedule("");
+    setSelectedTime("");
+    setL2Result("");
+    setD3Result("");
+  };
 
   const handleSaveResults = () => {
     if (!selectedSchedule || !selectedTime || !l2Result || !d3Result) {
@@ -115,11 +125,7 @@ export default function ResultsScreen() {
       }
     });
 
-    // Reset all fields
-    setSelectedSchedule("");
-    setSelectedTime("");
-    setL2Result("");
-    setD3Result("");
+    handleCloseModal();
 
     Alert.alert("Success", "Results saved successfully");
   };
@@ -146,6 +152,8 @@ export default function ResultsScreen() {
     // Scroll to top to show the form
     // @ts-ignore
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+
+    setIsModalVisible(true);
   };
 
   const handleDeleteResult = (resultId: string) => {
@@ -214,104 +222,10 @@ export default function ResultsScreen() {
             </StyledView>
             <TouchableOpacity
               className="bg-black px-4 py-2 rounded-lg"
-              onPress={handleSaveResults}
+              onPress={() => setIsModalVisible(true)}
             >
-              <ThemedText className="text-white">Save Results</ThemedText>
+              <ThemedText className="text-white">Add Result</ThemedText>
             </TouchableOpacity>
-          </StyledView>
-
-          {/* Draw Schedule Section */}
-          <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 mb-4">
-            <ThemedText className="text-xl font-bold mb-4">
-              Draw Schedule
-            </ThemedText>
-            <StyledView className="space-y-4">
-              <StyledView>
-                <ThemedText className="text-base mb-2">Date</ThemedText>
-                <Dropdown
-                  data={drawSchedules}
-                  labelField="label"
-                  valueField="value"
-                  placeholder="Select draw date"
-                  value={selectedSchedule}
-                  onChange={(item) => setSelectedSchedule(item.value)}
-                  style={{
-                    height: 50,
-                    borderColor: "#E5E7EB",
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    paddingHorizontal: 16,
-                  }}
-                />
-              </StyledView>
-              <StyledView>
-                <ThemedText className="text-base mb-2">Time</ThemedText>
-                <Dropdown
-                  data={timeSchedules}
-                  labelField="label"
-                  valueField="value"
-                  placeholder="Select draw time"
-                  value={selectedTime}
-                  onChange={(item) => setSelectedTime(item.value)}
-                  style={{
-                    height: 50,
-                    borderColor: "#E5E7EB",
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    paddingHorizontal: 16,
-                  }}
-                />
-              </StyledView>
-            </StyledView>
-          </StyledView>
-
-          {/* Enter Results Section */}
-          <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 mb-4">
-            <ThemedText className="text-xl font-bold mb-4">
-              Enter Results
-            </ThemedText>
-            <StyledView className="space-y-4">
-              <StyledView>
-                <ThemedText className="text-base mb-2">L2 Result</ThemedText>
-                <TextInput
-                  className="border border-gray-200 rounded-lg p-3"
-                  placeholder="Enter Last 2 digits (00-99)"
-                  value={l2Result}
-                  onChangeText={setL2Result}
-                  keyboardType="numeric"
-                  maxLength={2}
-                  blurOnSubmit={true}
-                />
-              </StyledView>
-              <StyledView>
-                <ThemedText className="text-base mb-2">3D Result</ThemedText>
-                <TextInput
-                  className="border border-gray-200 rounded-lg p-3"
-                  placeholder="Enter 3 digits (000-999)"
-                  value={d3Result}
-                  onChangeText={setD3Result}
-                  keyboardType="numeric"
-                  maxLength={3}
-                  blurOnSubmit={true}
-                />
-              </StyledView>
-            </StyledView>
-          </StyledView>
-
-          {/* Summary Section */}
-          <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 mb-4">
-            <ThemedText className="text-xl font-bold mb-4">Summary</ThemedText>
-            <StyledView className="space-y-2">
-              <ThemedText>
-                Date/Time:{" "}
-                {selectedSchedule
-                  ? drawSchedules.find((s) => s.value === selectedSchedule)
-                      ?.label
-                  : "Not selected"}
-              </ThemedText>
-              <ThemedText>L2 Result: {l2Result || "Not entered"}</ThemedText>
-              <ThemedText>3D Result: {d3Result || "Not entered"}</ThemedText>
-            </StyledView>
           </StyledView>
 
           {/* Draw Results History with Filters */}
@@ -384,6 +298,144 @@ export default function ResultsScreen() {
           </StyledView>
         </StyledView>
       </ScrollView>
+
+      {/* Add/Edit Result Modal */}
+      <Modal
+        isVisible={isModalVisible}
+        onBackdropPress={handleCloseModal}
+        onBackButtonPress={handleCloseModal}
+        useNativeDriver
+        style={{ margin: 0 }}
+      >
+        <StyledView className="flex-1 bg-black/50 justify-center">
+          <StyledView className="bg-white mx-4 rounded-xl p-4">
+            <StyledView className="flex-row justify-between items-center mb-4">
+              <ThemedText className="text-xl font-bold">
+                Add Draw Result
+              </ThemedText>
+              <TouchableOpacity onPress={handleCloseModal}>
+                <MaterialIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </StyledView>
+
+            <ScrollView>
+              <StyledView className="space-y-4">
+                {/* Draw Schedule Section */}
+                <StyledView className="space-y-4">
+                  <ThemedText className="text-lg font-bold">
+                    Draw Schedule
+                  </ThemedText>
+                  <StyledView>
+                    <ThemedText className="text-base mb-2">Date</ThemedText>
+                    <Dropdown
+                      data={drawSchedules}
+                      labelField="label"
+                      valueField="value"
+                      placeholder="Select draw date"
+                      value={selectedSchedule}
+                      onChange={(item) => setSelectedSchedule(item.value)}
+                      style={{
+                        height: 50,
+                        borderColor: "#E5E7EB",
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingHorizontal: 16,
+                      }}
+                    />
+                  </StyledView>
+                  <StyledView>
+                    <ThemedText className="text-base mb-2">Time</ThemedText>
+                    <Dropdown
+                      data={timeSchedules}
+                      labelField="label"
+                      valueField="value"
+                      placeholder="Select draw time"
+                      value={selectedTime}
+                      onChange={(item) => setSelectedTime(item.value)}
+                      style={{
+                        height: 50,
+                        borderColor: "#E5E7EB",
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingHorizontal: 16,
+                      }}
+                    />
+                  </StyledView>
+                </StyledView>
+
+                {/* Enter Results Section */}
+                <StyledView className="space-y-4">
+                  <ThemedText className="text-lg font-bold">
+                    Enter Results
+                  </ThemedText>
+                  <StyledView>
+                    <ThemedText className="text-base mb-2">
+                      L2 Result
+                    </ThemedText>
+                    <TextInput
+                      className="border border-gray-200 rounded-lg p-3"
+                      placeholder="Enter Last 2 digits (00-99)"
+                      value={l2Result}
+                      onChangeText={setL2Result}
+                      keyboardType="numeric"
+                      maxLength={2}
+                      blurOnSubmit={true}
+                    />
+                  </StyledView>
+                  <StyledView>
+                    <ThemedText className="text-base mb-2">
+                      3D Result
+                    </ThemedText>
+                    <TextInput
+                      className="border border-gray-200 rounded-lg p-3"
+                      placeholder="Enter 3 digits (000-999)"
+                      value={d3Result}
+                      onChangeText={setD3Result}
+                      keyboardType="numeric"
+                      maxLength={3}
+                      blurOnSubmit={true}
+                    />
+                  </StyledView>
+                </StyledView>
+
+                {/* Summary Section */}
+                <StyledView className="space-y-2">
+                  <ThemedText className="text-lg font-bold">Summary</ThemedText>
+                  <ThemedText>
+                    Date/Time:{" "}
+                    {selectedSchedule
+                      ? `${
+                          drawSchedules.find(
+                            (s) => s.value === selectedSchedule
+                          )?.label
+                        }, ${
+                          timeSchedules.find((t) => t.value === selectedTime)
+                            ?.label || ""
+                        }`
+                      : "Not selected"}
+                  </ThemedText>
+                  <ThemedText>
+                    L2 Result: {l2Result || "Not entered"}
+                  </ThemedText>
+                  <ThemedText>
+                    3D Result: {d3Result || "Not entered"}
+                  </ThemedText>
+                </StyledView>
+
+                {/* Save Button */}
+                <TouchableOpacity
+                  className="bg-black py-3 rounded-lg mt-4"
+                  onPress={handleSaveResults}
+                >
+                  <ThemedText className="text-white text-center font-semibold">
+                    Save Result
+                  </ThemedText>
+                </TouchableOpacity>
+              </StyledView>
+            </ScrollView>
+          </StyledView>
+        </StyledView>
+      </Modal>
     </StyledSafeAreaView>
   );
 }
