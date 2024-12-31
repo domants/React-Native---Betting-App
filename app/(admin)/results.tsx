@@ -69,6 +69,8 @@ export default function ResultsScreen() {
   const [filterMonth, setFilterMonth] = useState(new Date());
   const scrollViewRef = useRef(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const timeOptions = [
     { label: "All", value: "" },
@@ -83,6 +85,8 @@ export default function ResultsScreen() {
     setSelectedTime("");
     setL2Result("");
     setD3Result("");
+    setIsEditing(false);
+    setSelectedId(null);
   };
 
   const handleSaveResults = () => {
@@ -101,7 +105,7 @@ export default function ResultsScreen() {
     if (!selectedDraw || !selectedTimeOption) return;
 
     const newResult: DrawResult = {
-      id: Date.now().toString(),
+      id: isEditing ? selectedId! : Date.now().toString(),
       date: selectedDraw.label,
       time: selectedTimeOption.label,
       l2Result,
@@ -109,20 +113,12 @@ export default function ResultsScreen() {
     };
 
     setResults((prev) => {
-      // Check if we're editing an existing result
-      const existingResultIndex = prev.findIndex(
-        (r) => r.date === newResult.date && r.time === newResult.time
-      );
-
-      if (existingResultIndex >= 0) {
-        // Update existing result
-        const updatedResults = [...prev];
-        updatedResults[existingResultIndex] = newResult;
-        return updatedResults;
-      } else {
-        // Add new result
-        return [newResult, ...prev];
+      if (isEditing) {
+        return prev.map((result) =>
+          result.id === selectedId ? newResult : result
+        );
       }
+      return [newResult, ...prev];
     });
 
     handleCloseModal();
@@ -134,7 +130,9 @@ export default function ResultsScreen() {
     const resultToEdit = results.find((r) => r.id === resultId);
     if (!resultToEdit) return;
 
-    // Find matching schedule and time options
+    setIsEditing(true);
+    setSelectedId(resultId);
+
     const matchingSchedule = drawSchedules.find(
       (s) => s.label === resultToEdit.date
     );
@@ -148,10 +146,6 @@ export default function ResultsScreen() {
       setL2Result(resultToEdit.l2Result);
       setD3Result(resultToEdit.d3Result);
     }
-
-    // Scroll to top to show the form
-    // @ts-ignore
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
 
     setIsModalVisible(true);
   };
@@ -192,11 +186,14 @@ export default function ResultsScreen() {
     }
   };
 
-  const filteredResults = results.filter((result) => {
-    console.log(result);
-    if (!filterDate) return true;
+  const handleTimeFilter = (time: string) => {
+    setFilterTime(time);
+  };
 
-    return result.date === filterDate;
+  const filteredResults = results.filter((result) => {
+    const matchesDate = !filterDate || result.date === filterDate;
+    const matchesTime = !filterTime || result.time === filterTime;
+    return matchesDate && matchesTime;
   });
 
   return (
@@ -230,17 +227,36 @@ export default function ResultsScreen() {
 
           {/* Draw Results History with Filters */}
           <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-            <StyledView className="flex-row justify-between items-center mb-4">
-              <ThemedText className="text-xl font-bold">
-                Draw Results History
-              </ThemedText>
+            <ThemedText className="text-xl font-bold mb-4">
+              Draw Results History
+            </ThemedText>
+
+            {/* Filters in center */}
+            <StyledView className="flex-row justify-center items-center space-x-4 mb-6 border-b border-gray-200 pb-4">
               <TouchableOpacity
-                className="flex-row items-center space-x-2 bg-gray-100 px-3 py-2 rounded-lg"
+                className="flex-1 flex-row justify-center items-center space-x-2 bg-gray-100 py-2 rounded-lg"
                 onPress={() => setShowDatePicker(true)}
               >
                 <MaterialIcons name="calendar-today" size={20} color="#000" />
                 <ThemedText>Pick a month</ThemedText>
               </TouchableOpacity>
+              <Dropdown
+                data={timeOptions}
+                labelField="label"
+                valueField="value"
+                placeholder="All Times"
+                value={filterTime}
+                onChange={(item) => handleTimeFilter(item.value)}
+                style={{
+                  flex: 1,
+                  height: 36,
+                  borderColor: "#E5E7EB",
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingHorizontal: 8,
+                  backgroundColor: "#F3F4F6",
+                }}
+              />
             </StyledView>
 
             {showDatePicker && (
@@ -252,8 +268,8 @@ export default function ResultsScreen() {
               />
             )}
 
-            {/* Results List */}
-            <StyledView className="space-y-3">
+            {/* Results List with Cards */}
+            <StyledView className="space-y-4">
               {filteredResults.length === 0 ? (
                 <ThemedText className="text-gray-500 text-center py-2">
                   No results found for this date
@@ -262,7 +278,7 @@ export default function ResultsScreen() {
                 filteredResults.map((result) => (
                   <StyledView
                     key={result.id}
-                    className="flex-row justify-between items-center"
+                    className="flex-row justify-between items-center bg-gray-50 p-4 rounded-lg border border-gray-100"
                   >
                     <StyledView className="space-y-2">
                       <ThemedText className="text-lg font-bold">
@@ -274,16 +290,11 @@ export default function ResultsScreen() {
                       <ThemedText>L2: {result.l2Result}</ThemedText>
                       <ThemedText>3D: {result.d3Result}</ThemedText>
                     </StyledView>
-                    <StyledView className="flex-row items-center">
+                    <StyledView className="flex-row items-center space-x-3">
                       <TouchableOpacity
                         onPress={() => handleEditResult(result.id)}
                       >
-                        <MaterialIcons
-                          name="edit"
-                          size={24}
-                          color="blue"
-                          className="mr-2"
-                        />
+                        <MaterialIcons name="edit" size={24} color="blue" />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => handleDeleteResult(result.id)}
