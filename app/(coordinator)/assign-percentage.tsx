@@ -1,210 +1,331 @@
-import React, { useState } from "react";
-import { View, TextInput, TouchableOpacity, Alert } from "react-native";
+import { View, TouchableOpacity, TextInput } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useState } from "react";
 import { router } from "expo-router";
-import { Dropdown } from "react-native-element-dropdown";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import Modal from "react-native-modal";
 
 import { ThemedText } from "@/components/ThemedText";
+import { ThemedView } from "@/components/ThemedView";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 
-interface Subordinate {
+interface UserAllocation {
   id: string;
   name: string;
-  percentage: number;
-  winnings: number;
+  role: string;
+  l2Allocation: {
+    percentage: number;
+    amount: number;
+  };
+  d3Allocation: {
+    percentage: number;
+    amount: number;
+  };
 }
 
 export default function AssignPercentageScreen() {
-  const { user } = useCurrentUser();
-  const [subordinates, setSubordinates] = useState<Subordinate[]>([
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserAllocation | null>(null);
+  const [l2Percentage, setL2Percentage] = useState("");
+  const [l2Winnings, setL2Winnings] = useState("");
+  const [d3Percentage, setD3Percentage] = useState("");
+  const [d3Winnings, setD3Winnings] = useState("");
+
+  // Mock data - replace with actual data from your backend
+  const currentAllocation = {
+    l2: {
+      percentage: 80,
+      remainingPercentage: 20,
+      winnings: 7000,
+      remainingWinnings: 3000,
+    },
+    d3: {
+      percentage: 55,
+      remainingPercentage: 45,
+      winnings: 10000,
+      remainingWinnings: 10000,
+    },
+  };
+
+  const users: UserAllocation[] = [
     {
       id: "1",
       name: "John Doe",
-      percentage: 30,
-      winnings: 3000,
+      role: "Sub-Coordinator",
+      l2Allocation: {
+        percentage: 50,
+        amount: 2000,
+      },
+      d3Allocation: {
+        percentage: 15,
+        amount: 3000,
+      },
     },
     {
       id: "2",
       name: "Jane Smith",
-      percentage: 10,
-      winnings: 1000,
+      role: "Usher",
+      l2Allocation: {
+        percentage: 10,
+        amount: 1000,
+      },
+      d3Allocation: {
+        percentage: 10,
+        amount: 2000,
+      },
     },
-  ]);
+  ];
 
-  // New allocation form state
-  const [selectedSubordinate, setSelectedSubordinate] = useState("");
-  const [newPercentage, setNewPercentage] = useState("2");
-  const [newWinnings, setNewWinnings] = useState("");
-
-  // Calculate available allocation
-  const totalAllocatedPercentage = subordinates.reduce(
-    (sum, sub) => sum + sub.percentage,
-    0
-  );
-  const totalAllocatedWinnings = subordinates.reduce(
-    (sum, sub) => sum + sub.winnings,
-    0
-  );
-  const availablePercentage = 60 - totalAllocatedPercentage;
-  const availableWinnings = 6000 - totalAllocatedWinnings;
-
-  const handleEditAllocation = (subordinateId: string) => {
-    // Implement edit logic
-    console.log("Editing allocation for:", subordinateId);
+  const handleEdit = (user: UserAllocation) => {
+    setSelectedUser(user);
+    setIsModalVisible(true);
   };
 
-  const handleConfirmAllocation = () => {
-    if (!selectedSubordinate) {
-      Alert.alert("Error", "Please select a subordinate");
-      return;
-    }
-
-    const percentage = Number(newPercentage);
-    const winnings = Number(newWinnings);
-
-    if (percentage > availablePercentage) {
-      Alert.alert("Error", "Percentage exceeds available allocation");
-      return;
-    }
-
-    if (winnings > availableWinnings) {
-      Alert.alert("Error", "Winnings exceed available allocation");
-      return;
-    }
-
-    // Add new allocation logic here
-    console.log("New allocation:", {
-      subordinate: selectedSubordinate,
-      percentage,
-      winnings,
-    });
+  const handleSaveAllocation = () => {
+    setIsModalVisible(false);
+    setL2Percentage("");
+    setL2Winnings("");
+    setD3Percentage("");
+    setD3Winnings("");
   };
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
-      <ScrollView className="flex-1">
-        <StyledView className="p-4">
-          {/* Header */}
-          <StyledView className="flex-row items-center mb-6">
-            <TouchableOpacity onPress={() => router.back()} className="mr-3">
-              <MaterialIcons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <ThemedText className="text-2xl font-bold">
-              Assign Percentage & Winnings
-            </ThemedText>
-          </StyledView>
+      {/* Header */}
+      <StyledView className="p-4 flex-row items-center border-b border-gray-200">
+        <TouchableOpacity onPress={() => router.back()} className="mr-3">
+          <MaterialIcons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+        <ThemedText className="text-xl font-bold">
+          Assign L2 & 3D Allocation
+        </ThemedText>
+      </StyledView>
 
-          {/* Current Allocation Overview */}
-          <StyledView className="bg-white p-4 rounded-lg mb-6">
-            <ThemedText className="text-xl font-bold mb-4">
-              Current Allocation Overview
-            </ThemedText>
-            <ThemedText className="text-base mb-2">
-              Available Percentage: {availablePercentage}%
-            </ThemedText>
-            <ThemedText className="text-base">
-              Available Winnings: ₱{availableWinnings}
-            </ThemedText>
-          </StyledView>
-
-          {/* Subordinates List */}
-          <ThemedText className="text-xl font-bold mb-4">
-            Subordinates
+      <ScrollView className="flex-1 p-4">
+        {/* Current Allocation Summary */}
+        <StyledView className="bg-white rounded-xl p-4 mb-4 shadow-sm border border-gray-100">
+          <ThemedText className="text-lg font-bold mb-4">
+            Current Allocation Summary
           </ThemedText>
-          {subordinates.map((subordinate) => (
-            <StyledView
-              key={subordinate.id}
-              className="bg-white p-4 rounded-lg mb-3 flex-row justify-between items-center"
-            >
-              <StyledView>
-                <ThemedText className="font-bold mb-1">
-                  {subordinate.name}
-                </ThemedText>
-                <ThemedText className="text-gray-600">
-                  {subordinate.percentage}% | ₱{subordinate.winnings}
-                </ThemedText>
-              </StyledView>
-              <TouchableOpacity
-                onPress={() => handleEditAllocation(subordinate.id)}
-                className="bg-gray-100 px-4 py-2 rounded-lg"
-              >
-                <ThemedText>Edit Allocation</ThemedText>
-              </TouchableOpacity>
+
+          {/* L2 Section */}
+          <StyledView className="mb-4">
+            <ThemedText className="font-bold mb-2">L2</ThemedText>
+            <StyledView className="flex-row justify-between mb-2">
+              <ThemedText>Percentage:</ThemedText>
+              <ThemedText>
+                {currentAllocation.l2.remainingPercentage}% remaining
+              </ThemedText>
             </StyledView>
-          ))}
-
-          {/* Add Allocation Section */}
-          <StyledView className="bg-white p-4 rounded-lg mt-4">
-            <ThemedText className="text-xl font-bold mb-4">
-              Add Allocation
-            </ThemedText>
-
-            <StyledView className="mb-4">
-              <ThemedText className="mb-2">Select Subordinate</ThemedText>
-              <Dropdown
-                data={[
-                  { label: "Add New Subordinate", value: "new" },
-                  { label: "Existing User 1", value: "user1" },
-                  { label: "Existing User 2", value: "user2" },
-                ]}
-                labelField="label"
-                valueField="value"
-                placeholder="Add New Subordinate"
-                value={selectedSubordinate}
-                onChange={(item) => setSelectedSubordinate(item.value)}
+            <StyledView className="h-2 bg-gray-200 rounded-full mb-3">
+              <StyledView
+                className="h-2 bg-blue-600 rounded-full"
+                style={{ width: `${currentAllocation.l2.percentage}%` }}
+              />
+            </StyledView>
+            <StyledView className="flex-row justify-between">
+              <ThemedText>Winnings:</ThemedText>
+              <ThemedText>
+                ₱{currentAllocation.l2.remainingWinnings} remaining
+              </ThemedText>
+            </StyledView>
+            <StyledView className="h-2 bg-gray-200 rounded-full">
+              <StyledView
+                className="h-2 bg-green-600 rounded-full"
                 style={{
-                  height: 50,
-                  borderColor: "#E5E7EB",
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  paddingHorizontal: 12,
+                  width: `${
+                    (currentAllocation.l2.winnings /
+                      (currentAllocation.l2.winnings +
+                        currentAllocation.l2.remainingWinnings)) *
+                    100
+                  }%`,
                 }}
               />
             </StyledView>
+          </StyledView>
 
-            <StyledView className="mb-4">
-              <ThemedText className="mb-2">
-                Percentage ({newPercentage}%)
+          {/* 3D Section */}
+          <StyledView>
+            <ThemedText className="font-bold mb-2">3D</ThemedText>
+            <StyledView className="flex-row justify-between mb-2">
+              <ThemedText>Percentage:</ThemedText>
+              <ThemedText>
+                {currentAllocation.d3.remainingPercentage}% remaining
               </ThemedText>
-              <StyledView className="flex-row items-center">
-                <TextInput
-                  value={newPercentage}
-                  onChangeText={setNewPercentage}
-                  keyboardType="numeric"
-                  className="flex-1 h-12 px-4 border border-gray-200 rounded-lg"
-                  placeholder="Enter percentage"
-                />
-              </StyledView>
             </StyledView>
-
-            <StyledView className="mb-6">
-              <ThemedText className="mb-2">Winnings (₱)</ThemedText>
-              <TextInput
-                value={newWinnings}
-                onChangeText={setNewWinnings}
-                keyboardType="numeric"
-                className="h-12 px-4 border border-gray-200 rounded-lg"
-                placeholder="Enter winnings amount"
+            <StyledView className="h-2 bg-gray-200 rounded-full mb-3">
+              <StyledView
+                className="h-2 bg-blue-600 rounded-full"
+                style={{ width: `${currentAllocation.d3.percentage}%` }}
               />
             </StyledView>
-
-            <TouchableOpacity
-              className="bg-black py-4 rounded-lg"
-              onPress={handleConfirmAllocation}
-            >
-              <ThemedText className="text-white text-center font-semibold">
-                Confirm Allocation
+            <StyledView className="flex-row justify-between">
+              <ThemedText>Winnings:</ThemedText>
+              <ThemedText>
+                ₱{currentAllocation.d3.remainingWinnings} remaining
               </ThemedText>
-            </TouchableOpacity>
+            </StyledView>
+            <StyledView className="h-2 bg-gray-200 rounded-full">
+              <StyledView
+                className="h-2 bg-green-600 rounded-full"
+                style={{
+                  width: `${
+                    (currentAllocation.d3.winnings /
+                      (currentAllocation.d3.winnings +
+                        currentAllocation.d3.remainingWinnings)) *
+                    100
+                  }%`,
+                }}
+              />
+            </StyledView>
           </StyledView>
         </StyledView>
+
+        {/* User Allocations */}
+        <StyledView className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <ThemedText className="text-lg font-bold mb-4">
+            User Allocations
+          </ThemedText>
+
+          {users.map((user) => (
+            <StyledView
+              key={user.id}
+              className="border-b border-gray-100 py-4 last:border-b-0"
+            >
+              <StyledView className="flex-row justify-between items-center mb-2">
+                <StyledView>
+                  <ThemedText className="font-bold">{user.name}</ThemedText>
+                  <ThemedText className="text-gray-600">{user.role}</ThemedText>
+                </StyledView>
+                <TouchableOpacity
+                  onPress={() => handleEdit(user)}
+                  className="bg-gray-100 px-4 py-2 rounded-lg"
+                >
+                  <ThemedText>Edit</ThemedText>
+                </TouchableOpacity>
+              </StyledView>
+
+              <StyledView className="flex-row justify-between">
+                <StyledView className="flex-1 mr-4">
+                  <ThemedText className="text-gray-600 mb-1">
+                    L2 Allocation
+                  </ThemedText>
+                  <ThemedText>
+                    {user.l2Allocation.percentage}% | ₱
+                    {user.l2Allocation.amount}
+                  </ThemedText>
+                </StyledView>
+                <StyledView className="flex-1">
+                  <ThemedText className="text-gray-600 mb-1">
+                    3D Allocation
+                  </ThemedText>
+                  <ThemedText>
+                    {user.d3Allocation.percentage}% | ₱
+                    {user.d3Allocation.amount}
+                  </ThemedText>
+                </StyledView>
+              </StyledView>
+            </StyledView>
+          ))}
+        </StyledView>
       </ScrollView>
+
+      {/* Edit Modal */}
+      <Modal
+        isVisible={isModalVisible}
+        onBackdropPress={() => setIsModalVisible(false)}
+        onBackButtonPress={() => setIsModalVisible(false)}
+        useNativeDriver
+        style={{ margin: 20 }}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setIsModalVisible(false)}
+        >
+          <StyledView className="bg-white rounded-xl p-4">
+            {/* Modal Header */}
+            <StyledView className="flex-row justify-between items-center mb-6">
+              <ThemedText className="text-xl font-bold">
+                Edit Allocation for {selectedUser?.name}
+              </ThemedText>
+              <TouchableOpacity onPress={() => setIsModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </StyledView>
+
+            {/* Form Fields */}
+            <StyledView className="space-y-4">
+              {/* L2 Percentage */}
+              <StyledView>
+                <ThemedText className="text-base mb-2">
+                  L2 Percentage
+                </ThemedText>
+                <TextInput
+                  className="border border-gray-200 rounded-lg p-3 bg-white"
+                  placeholder="Enter percentage"
+                  value={l2Percentage}
+                  onChangeText={setL2Percentage}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+              </StyledView>
+
+              {/* L2 Winnings */}
+              <StyledView>
+                <ThemedText className="text-base mb-2">L2 Winnings</ThemedText>
+                <TextInput
+                  className="border border-gray-200 rounded-lg p-3 bg-white"
+                  placeholder="Enter amount"
+                  value={l2Winnings}
+                  onChangeText={setL2Winnings}
+                  keyboardType="numeric"
+                />
+              </StyledView>
+
+              {/* 3D Percentage */}
+              <StyledView>
+                <ThemedText className="text-base mb-2">
+                  3D Percentage
+                </ThemedText>
+                <TextInput
+                  className="border border-gray-200 rounded-lg p-3 bg-white"
+                  placeholder="Enter percentage"
+                  value={d3Percentage}
+                  onChangeText={setD3Percentage}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+              </StyledView>
+
+              {/* 3D Winnings */}
+              <StyledView>
+                <ThemedText className="text-base mb-2">3D Winnings</ThemedText>
+                <TextInput
+                  className="border border-gray-200 rounded-lg p-3 bg-white"
+                  placeholder="Enter amount"
+                  value={d3Winnings}
+                  onChangeText={setD3Winnings}
+                  keyboardType="numeric"
+                />
+              </StyledView>
+
+              {/* Save Button */}
+              <TouchableOpacity
+                className="bg-black py-3 rounded-lg mt-4"
+                onPress={handleSaveAllocation}
+              >
+                <ThemedText className="text-white text-center font-semibold">
+                  Save Allocation
+                </ThemedText>
+              </TouchableOpacity>
+            </StyledView>
+          </StyledView>
+        </TouchableOpacity>
+      </Modal>
     </StyledSafeAreaView>
   );
 }
