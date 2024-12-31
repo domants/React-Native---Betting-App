@@ -1,12 +1,12 @@
-import { View, TextInput, TouchableOpacity } from "react-native";
+import { View, TextInput, TouchableOpacity, Alert } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { router } from "expo-router";
 import { Dropdown } from "react-native-element-dropdown";
-import Modal from "react-native-modal";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { ThemedText } from "@/components/ThemedText";
 
@@ -30,62 +30,171 @@ function formatDate(date: Date) {
   });
 }
 
-// get todays date
+// get today's date
 const today = new Date();
 const dateToday = new Date(today);
 dateToday.setDate(dateToday.getDate());
 
 const drawSchedules = [
   {
-    label: `${formatDate(dateToday)}, 11 AM`,
-    value: `${dateToday.toISOString().split("T")[0]}-11:00`,
+    label: formatDate(dateToday),
+    value: dateToday.toISOString().split("T")[0],
   },
-  {
-    label: `${formatDate(dateToday)}, 5 PM`,
-    value: `${dateToday.toISOString().split("T")[0]}-17:00`,
-  },
-  {
-    label: `${formatDate(dateToday)}, 9 PM`,
-    value: `${dateToday.toISOString().split("T")[0]}-21:00`,
-  },
+];
+
+const timeSchedules = [
+  { label: "11 AM", value: "11:00" },
+  { label: "5 PM", value: "17:00" },
+  { label: "9 PM", value: "21:00" },
 ];
 
 export default function ResultsScreen() {
   const [selectedSchedule, setSelectedSchedule] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
   const [l2Result, setL2Result] = useState("");
   const [d3Result, setD3Result] = useState("");
   const [results, setResults] = useState<DrawResult[]>([
     {
       id: "1",
-      date: "December 31, 2024",
-      time: "2 PM",
+      date: formatDate(dateToday),
+      time: "11 AM",
       l2Result: "23",
       d3Result: "712",
     },
   ]);
+  const [filterDate, setFilterDate] = useState("");
+  const [filterTime, setFilterTime] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [filterMonth, setFilterMonth] = useState(new Date());
+  const scrollViewRef = useRef(null);
+
+  const timeOptions = [
+    { label: "All", value: "" },
+    { label: "11 AM", value: "11 AM" },
+    { label: "5 PM", value: "5 PM" },
+    { label: "9 PM", value: "9 PM" },
+  ];
 
   const handleSaveResults = () => {
-    // Add validation and save logic here
-    console.log({
-      schedule: selectedSchedule,
+    if (!selectedSchedule || !selectedTime || !l2Result || !d3Result) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    const selectedDraw = drawSchedules.find(
+      (s) => s.value === selectedSchedule
+    );
+    const selectedTimeOption = timeSchedules.find(
+      (t) => t.value === selectedTime
+    );
+
+    if (!selectedDraw || !selectedTimeOption) return;
+
+    const newResult: DrawResult = {
+      id: Date.now().toString(),
+      date: selectedDraw.label,
+      time: selectedTimeOption.label,
       l2Result,
       d3Result,
+    };
+
+    setResults((prev) => {
+      // Check if we're editing an existing result
+      const existingResultIndex = prev.findIndex(
+        (r) => r.date === newResult.date && r.time === newResult.time
+      );
+
+      if (existingResultIndex >= 0) {
+        // Update existing result
+        const updatedResults = [...prev];
+        updatedResults[existingResultIndex] = newResult;
+        return updatedResults;
+      } else {
+        // Add new result
+        return [newResult, ...prev];
+      }
     });
+
+    // Reset all fields
+    setSelectedSchedule("");
+    setSelectedTime("");
+    setL2Result("");
+    setD3Result("");
+
+    Alert.alert("Success", "Results saved successfully");
   };
 
   const handleEditResult = (resultId: string) => {
-    // Implement edit logic
-    console.log("Editing result:", resultId);
+    const resultToEdit = results.find((r) => r.id === resultId);
+    if (!resultToEdit) return;
+
+    // Find matching schedule and time options
+    const matchingSchedule = drawSchedules.find(
+      (s) => s.label === resultToEdit.date
+    );
+    const matchingTime = timeSchedules.find(
+      (t) => t.label === resultToEdit.time
+    );
+
+    if (matchingSchedule && matchingTime) {
+      setSelectedSchedule(matchingSchedule.value);
+      setSelectedTime(matchingTime.value);
+      setL2Result(resultToEdit.l2Result);
+      setD3Result(resultToEdit.d3Result);
+    }
+
+    // Scroll to top to show the form
+    // @ts-ignore
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   const handleDeleteResult = (resultId: string) => {
-    // Implement delete logic
-    console.log("Deleting result:", resultId);
+    Alert.alert(
+      "Delete Result",
+      "Are you sure you want to delete this result?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setResults((prev) =>
+              prev.filter((result) => result.id !== resultId)
+            );
+          },
+        },
+      ]
+    );
   };
+
+  const handleMonthChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setFilterMonth(selectedDate);
+      setFilterDate(
+        selectedDate.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      );
+    }
+  };
+
+  const filteredResults = results.filter((result) => {
+    console.log(result);
+    if (!filterDate) return true;
+
+    return result.date === filterDate;
+  });
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1"
         onTouchStart={() => {
           // @ts-ignore
@@ -116,21 +225,44 @@ export default function ResultsScreen() {
             <ThemedText className="text-xl font-bold mb-4">
               Draw Schedule
             </ThemedText>
-            <Dropdown
-              data={drawSchedules}
-              labelField="label"
-              valueField="value"
-              placeholder="Select draw date and time"
-              value={selectedSchedule}
-              onChange={(item) => setSelectedSchedule(item.value)}
-              style={{
-                height: 50,
-                borderColor: "#E5E7EB",
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 16,
-              }}
-            />
+            <StyledView className="space-y-4">
+              <StyledView>
+                <ThemedText className="text-base mb-2">Date</ThemedText>
+                <Dropdown
+                  data={drawSchedules}
+                  labelField="label"
+                  valueField="value"
+                  placeholder="Select draw date"
+                  value={selectedSchedule}
+                  onChange={(item) => setSelectedSchedule(item.value)}
+                  style={{
+                    height: 50,
+                    borderColor: "#E5E7EB",
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingHorizontal: 16,
+                  }}
+                />
+              </StyledView>
+              <StyledView>
+                <ThemedText className="text-base mb-2">Time</ThemedText>
+                <Dropdown
+                  data={timeSchedules}
+                  labelField="label"
+                  valueField="value"
+                  placeholder="Select draw time"
+                  value={selectedTime}
+                  onChange={(item) => setSelectedTime(item.value)}
+                  style={{
+                    height: 50,
+                    borderColor: "#E5E7EB",
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingHorizontal: 16,
+                  }}
+                />
+              </StyledView>
+            </StyledView>
           </StyledView>
 
           {/* Enter Results Section */}
@@ -182,40 +314,72 @@ export default function ResultsScreen() {
             </StyledView>
           </StyledView>
 
-          {/* Draw Results History */}
+          {/* Draw Results History with Filters */}
           <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-            <ThemedText className="text-xl font-bold mb-4">
-              Draw Results History
-            </ThemedText>
+            <StyledView className="flex-row justify-between items-center mb-4">
+              <ThemedText className="text-xl font-bold">
+                Draw Results History
+              </ThemedText>
+              <TouchableOpacity
+                className="flex-row items-center space-x-2 bg-gray-100 px-3 py-2 rounded-lg"
+                onPress={() => setShowDatePicker(true)}
+              >
+                <MaterialIcons name="calendar-today" size={20} color="#000" />
+                <ThemedText>Pick a month</ThemedText>
+              </TouchableOpacity>
+            </StyledView>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={filterMonth}
+                mode="date"
+                display="default"
+                onChange={handleMonthChange}
+              />
+            )}
+
+            {/* Results List */}
             <StyledView className="space-y-3">
-              {results.map((result) => (
-                <StyledView
-                  key={result.id}
-                  className="flex-row justify-between items-center p-3 border border-gray-100 rounded-lg"
-                >
-                  <StyledView>
-                    <ThemedText className="font-bold">
-                      {result.date}, {result.time}
-                    </ThemedText>
-                    <ThemedText className="text-gray-600">
-                      L2: {result.l2Result}, 3D: {result.d3Result}
-                    </ThemedText>
+              {filteredResults.length === 0 ? (
+                <ThemedText className="text-gray-500 text-center py-2">
+                  No results found for this date
+                </ThemedText>
+              ) : (
+                filteredResults.map((result) => (
+                  <StyledView
+                    key={result.id}
+                    className="flex-row justify-between items-center"
+                  >
+                    <StyledView className="space-y-2">
+                      <ThemedText className="text-lg font-bold">
+                        {result.date}
+                      </ThemedText>
+                      <ThemedText className="text-gray-500">
+                        Time: {result.time}
+                      </ThemedText>
+                      <ThemedText>L2: {result.l2Result}</ThemedText>
+                      <ThemedText>3D: {result.d3Result}</ThemedText>
+                    </StyledView>
+                    <StyledView className="flex-row items-center">
+                      <TouchableOpacity
+                        onPress={() => handleEditResult(result.id)}
+                      >
+                        <MaterialIcons
+                          name="edit"
+                          size={24}
+                          color="blue"
+                          className="mr-2"
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteResult(result.id)}
+                      >
+                        <MaterialIcons name="delete" size={24} color="red" />
+                      </TouchableOpacity>
+                    </StyledView>
                   </StyledView>
-                  <StyledView className="flex-row">
-                    <TouchableOpacity
-                      onPress={() => handleEditResult(result.id)}
-                      className="mr-2"
-                    >
-                      <MaterialIcons name="edit" size={24} color="#666" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteResult(result.id)}
-                    >
-                      <MaterialIcons name="delete" size={24} color="#666" />
-                    </TouchableOpacity>
-                  </StyledView>
-                </StyledView>
-              ))}
+                ))
+              )}
             </StyledView>
           </StyledView>
         </StyledView>
