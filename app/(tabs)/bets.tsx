@@ -1,11 +1,10 @@
 import { View, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
-import { router } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const StyledView = styled(View);
@@ -15,7 +14,17 @@ interface ManagementOption {
   title: string;
   description: string;
   icon: keyof typeof MaterialIcons.glyphMap;
-  route: `/${string}` | "/(auth)/register" | "/(tabs)/dashboard";
+  route:
+    | "/(auth)/register"
+    | "/(coordinator)/assign-percentage"
+    | "/(coordinator)/view-bets";
+}
+
+interface ManagementCardProps {
+  title: string;
+  description: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  onPress: () => void;
 }
 
 function ManagementCard({
@@ -23,12 +32,7 @@ function ManagementCard({
   description,
   icon,
   onPress,
-}: {
-  title: string;
-  description: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-  onPress: () => void;
-}) {
+}: ManagementCardProps) {
   return (
     <TouchableOpacity
       className="w-full p-4 mb-3 bg-white rounded-xl border border-gray-200"
@@ -65,16 +69,10 @@ export default function ManagementScreen() {
       icon: "list",
       route: "/(coordinator)/view-bets",
     },
-    {
-      title: "Place Bet",
-      description: "Place new bets for games",
-      icon: "add-circle",
-      route: "/(tabs)/dashboard",
-    },
   ];
 
   if (isUserLoading || !user) {
-    return null; // or a loading spinner
+    return null;
   }
 
   return (
@@ -105,7 +103,7 @@ export default function ManagementScreen() {
             title={option.title}
             description={option.description}
             icon={option.icon}
-            onPress={() => router.push(option.route as any)}
+            onPress={() => router.push(option.route)}
           />
         ))}
       </StyledView>

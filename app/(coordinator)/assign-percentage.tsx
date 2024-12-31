@@ -3,7 +3,7 @@ import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { router } from "expo-router";
 import Modal from "react-native-modal";
 
@@ -35,8 +35,8 @@ export default function AssignPercentageScreen() {
   const [d3Percentage, setD3Percentage] = useState("");
   const [d3Winnings, setD3Winnings] = useState("");
 
-  // Mock data - replace with actual data from your backend
-  const currentAllocation = {
+  // Add state for current allocation
+  const [currentAllocation, setCurrentAllocation] = useState({
     l2: {
       percentage: 80,
       remainingPercentage: 20,
@@ -49,7 +49,7 @@ export default function AssignPercentageScreen() {
       winnings: 10000,
       remainingWinnings: 10000,
     },
-  };
+  });
 
   const users: UserAllocation[] = [
     {
@@ -80,18 +80,87 @@ export default function AssignPercentageScreen() {
     },
   ];
 
+  // Add state for users list
+  const [usersList, setUsersList] = useState<UserAllocation[]>(users);
+
+  // Add function to calculate current allocation
+  const calculateCurrentAllocation = (updatedUsers: UserAllocation[]) => {
+    const totalL2Percentage = updatedUsers.reduce(
+      (sum, user) => sum + user.l2Allocation.percentage,
+      0
+    );
+    const totalL2Winnings = updatedUsers.reduce(
+      (sum, user) => sum + user.l2Allocation.amount,
+      0
+    );
+    const totalD3Percentage = updatedUsers.reduce(
+      (sum, user) => sum + user.d3Allocation.percentage,
+      0
+    );
+    const totalD3Winnings = updatedUsers.reduce(
+      (sum, user) => sum + user.d3Allocation.amount,
+      0
+    );
+
+    setCurrentAllocation({
+      l2: {
+        percentage: totalL2Percentage,
+        remainingPercentage: 100 - totalL2Percentage,
+        winnings: totalL2Winnings,
+        remainingWinnings: 10000 - totalL2Winnings, // Adjust max winnings as needed
+      },
+      d3: {
+        percentage: totalD3Percentage,
+        remainingPercentage: 100 - totalD3Percentage,
+        winnings: totalD3Winnings,
+        remainingWinnings: 15000 - totalD3Winnings, // Adjust max winnings as needed
+      },
+    });
+  };
+
   const handleEdit = (user: UserAllocation) => {
     setSelectedUser(user);
+    setL2Percentage(user.l2Allocation.percentage.toString());
+    setL2Winnings(user.l2Allocation.amount.toString());
+    setD3Percentage(user.d3Allocation.percentage.toString());
+    setD3Winnings(user.d3Allocation.amount.toString());
     setIsModalVisible(true);
   };
 
   const handleSaveAllocation = () => {
+    if (!selectedUser) return;
+
+    const updatedUsers = usersList.map((user) => {
+      if (user.id === selectedUser.id) {
+        return {
+          ...user,
+          l2Allocation: {
+            percentage: Number(l2Percentage) || user.l2Allocation.percentage,
+            amount: Number(l2Winnings) || user.l2Allocation.amount,
+          },
+          d3Allocation: {
+            percentage: Number(d3Percentage) || user.d3Allocation.percentage,
+            amount: Number(d3Winnings) || user.d3Allocation.amount,
+          },
+        };
+      }
+      return user;
+    });
+
+    setUsersList(updatedUsers);
+    calculateCurrentAllocation(updatedUsers);
+
     setIsModalVisible(false);
     setL2Percentage("");
     setL2Winnings("");
     setD3Percentage("");
     setD3Winnings("");
   };
+
+  // Initialize current allocation on component mount
+  useEffect(() => {
+    calculateCurrentAllocation(usersList);
+  }, []);
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
@@ -191,7 +260,7 @@ export default function AssignPercentageScreen() {
             User Allocations
           </ThemedText>
 
-          {users.map((user) => (
+          {usersList.map((user) => (
             <StyledView
               key={user.id}
               className="border-b border-gray-100 py-4 last:border-b-0"
