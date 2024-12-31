@@ -237,94 +237,86 @@ export default function AssignPercentageScreen() {
       {/* Edit Modal */}
       <Modal
         isVisible={isModalVisible}
-        onBackdropPress={() => setIsModalVisible(false)}
-        onBackButtonPress={() => setIsModalVisible(false)}
+        onBackdropPress={() => {}}
+        onBackButtonPress={() => {}}
         useNativeDriver
         style={{ margin: 20 }}
+        avoidKeyboard
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setIsModalVisible(false)}
-        >
-          <StyledView className="bg-white rounded-xl p-4">
-            {/* Modal Header */}
-            <StyledView className="flex-row justify-between items-center mb-6">
-              <ThemedText className="text-xl font-bold">
-                Edit Allocation for {selectedUser?.name}
-              </ThemedText>
-              <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                <MaterialIcons name="close" size={24} color="#000" />
-              </TouchableOpacity>
-            </StyledView>
-
-            {/* Form Fields */}
-            <StyledView className="space-y-4">
-              {/* L2 Percentage */}
-              <StyledView>
-                <ThemedText className="text-base mb-2">
-                  L2 Percentage
-                </ThemedText>
-                <TextInput
-                  className="border border-gray-200 rounded-lg p-3 bg-white"
-                  placeholder="Enter percentage"
-                  value={l2Percentage}
-                  onChangeText={setL2Percentage}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-              </StyledView>
-
-              {/* L2 Winnings */}
-              <StyledView>
-                <ThemedText className="text-base mb-2">L2 Winnings</ThemedText>
-                <TextInput
-                  className="border border-gray-200 rounded-lg p-3 bg-white"
-                  placeholder="Enter amount"
-                  value={l2Winnings}
-                  onChangeText={setL2Winnings}
-                  keyboardType="numeric"
-                />
-              </StyledView>
-
-              {/* 3D Percentage */}
-              <StyledView>
-                <ThemedText className="text-base mb-2">
-                  3D Percentage
-                </ThemedText>
-                <TextInput
-                  className="border border-gray-200 rounded-lg p-3 bg-white"
-                  placeholder="Enter percentage"
-                  value={d3Percentage}
-                  onChangeText={setD3Percentage}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-              </StyledView>
-
-              {/* 3D Winnings */}
-              <StyledView>
-                <ThemedText className="text-base mb-2">3D Winnings</ThemedText>
-                <TextInput
-                  className="border border-gray-200 rounded-lg p-3 bg-white"
-                  placeholder="Enter amount"
-                  value={d3Winnings}
-                  onChangeText={setD3Winnings}
-                  keyboardType="numeric"
-                />
-              </StyledView>
-
-              {/* Save Button */}
-              <TouchableOpacity
-                className="bg-black py-3 rounded-lg mt-4"
-                onPress={handleSaveAllocation}
-              >
-                <ThemedText className="text-white text-center font-semibold">
-                  Save Allocation
-                </ThemedText>
-              </TouchableOpacity>
-            </StyledView>
+        <StyledView className="bg-white rounded-xl p-4">
+          {/* Modal Header */}
+          <StyledView className="flex-row justify-between items-center mb-6">
+            <ThemedText className="text-xl font-bold">
+              Edit Allocation for {selectedUser?.name}
+            </ThemedText>
+            <TouchableOpacity onPress={() => setIsModalVisible(false)}>
+              <MaterialIcons name="close" size={24} color="#000" />
+            </TouchableOpacity>
           </StyledView>
-        </TouchableOpacity>
+
+          {/* Form Fields */}
+          <StyledView className="space-y-4">
+            {/* L2 Percentage */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">L2 Percentage</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter percentage"
+                value={l2Percentage}
+                onChangeText={setL2Percentage}
+                keyboardType="numeric"
+                maxLength={3}
+              />
+            </StyledView>
+
+            {/* L2 Winnings */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">L2 Winnings</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter amount"
+                value={l2Winnings}
+                onChangeText={setL2Winnings}
+                keyboardType="numeric"
+              />
+            </StyledView>
+
+            {/* 3D Percentage */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">3D Percentage</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter percentage"
+                value={d3Percentage}
+                onChangeText={setD3Percentage}
+                keyboardType="numeric"
+                maxLength={3}
+              />
+            </StyledView>
+
+            {/* 3D Winnings */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">3D Winnings</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter amount"
+                value={d3Winnings}
+                onChangeText={setD3Winnings}
+                keyboardType="numeric"
+              />
+            </StyledView>
+
+            {/* Save Button */}
+            <TouchableOpacity
+              className="bg-black py-3 rounded-lg mt-4"
+              onPress={handleSaveAllocation}
+            >
+              <ThemedText className="text-white text-center font-semibold">
+                Save Allocation
+              </ThemedText>
+            </TouchableOpacity>
+          </StyledView>
+        </StyledView>
       </Modal>
     </StyledSafeAreaView>
   );
