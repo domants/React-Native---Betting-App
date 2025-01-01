@@ -1,376 +1,283 @@
 import { View, TouchableOpacity, TextInput, Alert } from "react-native";
-import Modal from "react-native-modal";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { useState } from "react";
-import { Dropdown } from "react-native-element-dropdown";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Modal from "react-native-modal";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { getSubordinates, updateUserAllocation } from "@/lib/api/admin";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 
-interface AccountAllocation {
-  id: string;
-  name: string;
-  role: string;
-  l2Percentage: number;
-  l2Winnings: number;
-  d3Percentage: number;
-  d3Winnings: number;
-}
-
 export default function PercentageScreen() {
+  const { user } = useCurrentUser();
+  const queryClient = useQueryClient();
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [accountType, setAccountType] = useState("");
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [l2Percentage, setL2Percentage] = useState("");
-  const [d3Percentage, setD3Percentage] = useState("");
   const [l2Winnings, setL2Winnings] = useState("");
+  const [d3Percentage, setD3Percentage] = useState("");
   const [d3Winnings, setD3Winnings] = useState("");
 
-  const [allocations, setAllocations] = useState<AccountAllocation[]>([
-    {
-      id: "1",
-      name: "Coordinator 1",
-      role: "Coordinator",
-      l2Percentage: 30,
-      l2Winnings: 4000,
-      d3Percentage: 20,
-      d3Winnings: 3000,
+  // Fetch subordinates
+  const { data: subordinates = [] } = useQuery({
+    queryKey: ["subordinates"],
+    queryFn: getSubordinates,
+  });
+
+  // Calculate total allocations
+  const totalAllocations = subordinates.reduce(
+    (acc, user) => ({
+      l2Percentage: acc.l2Percentage + (user.percentage_l2 || 0),
+      l2Winnings: acc.l2Winnings + (user.winnings_l2 || 0),
+      d3Percentage: acc.d3Percentage + (user.percentage_l3 || 0),
+      d3Winnings: acc.d3Winnings + (user.winnings_l3 || 0),
+    }),
+    { l2Percentage: 0, l2Winnings: 0, d3Percentage: 0, d3Winnings: 0 }
+  );
+
+  // Update allocation mutation
+  const updateAllocationMutation = useMutation({
+    mutationFn: async (params: {
+      userId: string;
+      updates: {
+        percentage_l2?: number;
+        percentage_l3?: number;
+        winnings_l2?: number;
+        winnings_l3?: number;
+      };
+    }) => {
+      const result = await updateUserAllocation(params.userId, params.updates);
+      return result;
     },
-  ]);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subordinates"] });
+      setIsModalVisible(false);
+      setSelectedUser(null);
+      Alert.alert("Success", "Allocation updated successfully");
+    },
+    onError: (error: Error) => {
+      console.error("Mutation error:", error);
+      Alert.alert("Error", error.message);
+    },
+  });
 
-  // Calculate remaining allocations
-  const totalL2Percentage = allocations.reduce(
-    (sum, acc) => sum + acc.l2Percentage,
-    0
-  );
-  const totalL2Winnings = allocations.reduce(
-    (sum, acc) => sum + acc.l2Winnings,
-    0
-  );
-  const totalD3Percentage = allocations.reduce(
-    (sum, acc) => sum + acc.d3Percentage,
-    0
-  );
-  const totalD3Winnings = allocations.reduce(
-    (sum, acc) => sum + acc.d3Winnings,
-    0
-  );
-
-  const remainingL2Percentage = 40;
-  const remainingL2Winnings = 5000;
-  const remainingD3Percentage = 60;
-  const remainingD3Winnings = 6000;
-
-  // Account type options
-  const accountTypeOptions = [
-    { label: "Coordinator", value: "coordinator" },
-    { label: "Sub-Coordinator", value: "sub_coordinator" },
-    { label: "Usher", value: "usher" },
-  ];
-
-  const resetForm = () => {
-    setName("");
-    setAccountType("");
-    setL2Percentage("");
-    setD3Percentage("");
-    setL2Winnings("");
-    setD3Winnings("");
-    setIsEditing(false);
-    setSelectedId(null);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalVisible(false);
-    resetForm();
-  };
-
-  const handleEdit = (account: AccountAllocation) => {
-    setIsEditing(true);
-    setSelectedId(account.id);
-    setName(account.name);
-    setAccountType(account.role.toLowerCase());
-    setL2Percentage(account.l2Percentage.toString());
-    setD3Percentage(account.d3Percentage.toString());
-    setL2Winnings(account.l2Winnings.toString());
-    setD3Winnings(account.d3Winnings.toString());
+  const handleEdit = (user: any) => {
+    setSelectedUser(user);
+    setL2Percentage(user.percentage_l2?.toString() || "0");
+    setL2Winnings(user.winnings_l2?.toString() || "0");
+    setD3Percentage(user.percentage_l3?.toString() || "0");
+    setD3Winnings(user.winnings_l3?.toString() || "0");
     setIsModalVisible(true);
   };
 
-  const handleDelete = (id: string) => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete this account?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            setAllocations((prev) => prev.filter((item) => item.id !== id));
-          },
-        },
-      ]
-    );
-  };
+  const handleSaveAllocation = async () => {
+    if (!selectedUser) return;
 
-  const handleSave = () => {
-    const newAllocation = {
-      id: isEditing ? selectedId! : Date.now().toString(),
-      name,
-      role: accountType.charAt(0).toUpperCase() + accountType.slice(1),
-      l2Percentage: Number(l2Percentage),
-      l2Winnings: Number(l2Winnings),
-      d3Percentage: Number(d3Percentage),
-      d3Winnings: Number(d3Winnings),
-    };
+    try {
+      const updates = {
+        percentage_l2: Number(l2Percentage) || 0,
+        percentage_l3: Number(d3Percentage) || 0,
+        winnings_l2: Number(l2Winnings) || 0,
+        winnings_l3: Number(d3Winnings) || 0,
+      };
 
-    if (isEditing) {
-      setAllocations((prev) =>
-        prev.map((item) => (item.id === selectedId ? newAllocation : item))
-      );
-    } else {
-      setAllocations((prev) => [...prev, newAllocation]);
+      // Validate total percentage doesn't exceed 100%
+      const newL2Total =
+        totalAllocations.l2Percentage -
+        (selectedUser.percentage_l2 || 0) +
+        updates.percentage_l2;
+      const newD3Total =
+        totalAllocations.d3Percentage -
+        (selectedUser.percentage_l3 || 0) +
+        updates.percentage_l3;
+
+      if (newL2Total > 100) {
+        Alert.alert("Error", "Total L2 percentage cannot exceed 100%");
+        return;
+      }
+
+      if (newD3Total > 100) {
+        Alert.alert("Error", "Total 3D percentage cannot exceed 100%");
+        return;
+      }
+
+      await updateAllocationMutation.mutateAsync({
+        userId: selectedUser.id,
+        updates,
+      });
+    } catch (error) {
+      console.error("Save error:", error);
+      Alert.alert("Error", "Failed to save allocation");
     }
-
-    handleCloseModal();
   };
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
       <ScrollView className="flex-1">
         <StyledView className="p-4">
-          {/* Header */}
-          <StyledView className="mb-6">
-            <StyledView className="flex-row items-center mb-4">
-              <TouchableOpacity onPress={() => router.back()} className="mr-3">
-                <MaterialIcons name="arrow-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <ThemedText className="text-2xl font-bold">
-                Assign Percentage & Winnings
+          {/* Current Allocation Summary */}
+          <StyledView className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <ThemedText className="text-lg font-bold mb-4">
+              Current Allocation Summary
+            </ThemedText>
+
+            {/* L2 Progress */}
+            <StyledView className="mb-4">
+              <ThemedText className="text-gray-600 mb-1">
+                L2 Allocation
+              </ThemedText>
+              <StyledView className="h-2 bg-gray-200 rounded-full">
+                <StyledView
+                  className="h-2 bg-green-600 rounded-full"
+                  style={{ width: `${totalAllocations.l2Percentage}%` }}
+                />
+              </StyledView>
+              <ThemedText className="text-sm text-gray-600 mt-1">
+                {totalAllocations.l2Percentage}% allocated |{" "}
+                {100 - totalAllocations.l2Percentage}% remaining
               </ThemedText>
             </StyledView>
-            <TouchableOpacity
-              className="bg-black py-3 rounded-lg"
-              onPress={() => setIsModalVisible(true)}
-            >
-              <ThemedText className="text-white text-center font-semibold">
-                Assign Allocation
+
+            {/* 3D Progress */}
+            <StyledView>
+              <ThemedText className="text-gray-600 mb-1">
+                3D Allocation
               </ThemedText>
-            </TouchableOpacity>
+              <StyledView className="h-2 bg-gray-200 rounded-full">
+                <StyledView
+                  className="h-2 bg-green-600 rounded-full"
+                  style={{ width: `${totalAllocations.d3Percentage}%` }}
+                />
+              </StyledView>
+              <ThemedText className="text-sm text-gray-600 mt-1">
+                {totalAllocations.d3Percentage}% allocated |{" "}
+                {100 - totalAllocations.d3Percentage}% remaining
+              </ThemedText>
+            </StyledView>
           </StyledView>
 
-          {/* Cards Container */}
-          <StyledView className="space-y-4">
-            {/* Remaining Allocation Card */}
-            <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <ThemedText className="text-xl font-bold mb-4">
-                Remaining Allocation
-              </ThemedText>
-              <StyledView className="flex-row justify-between">
-                <StyledView>
-                  <ThemedText className="font-bold mb-1">L2</ThemedText>
-                  <ThemedText className="text-gray-600">
-                    Percentage: {remainingL2Percentage}%
-                  </ThemedText>
-                  <ThemedText className="text-gray-600">
-                    Winnings: ₱{remainingL2Winnings}
-                  </ThemedText>
-                </StyledView>
-                <StyledView>
-                  <ThemedText className="font-bold mb-1">3D</ThemedText>
-                  <ThemedText className="text-gray-600">
-                    Percentage: {remainingD3Percentage}%
-                  </ThemedText>
-                  <ThemedText className="text-gray-600">
-                    Winnings: ₱{remainingD3Winnings}
-                  </ThemedText>
-                </StyledView>
-              </StyledView>
-            </StyledView>
+          {/* Account Allocations */}
+          <StyledView className="mt-4">
+            <ThemedText className="text-lg font-bold mb-4">
+              Account Allocations
+            </ThemedText>
 
-            {/* Account Allocations */}
-            <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <ThemedText className="text-xl font-bold mb-4">
-                Account Allocations
-              </ThemedText>
-              <StyledView className="space-y-3">
-                {allocations.map((account) => (
-                  <StyledView
-                    key={account.id}
-                    className="p-4 rounded-lg border border-gray-100"
-                  >
-                    <StyledView className="flex-row justify-between items-center mb-2">
-                      <StyledView>
-                        <ThemedText className="font-bold">
-                          {account.name}
-                        </ThemedText>
-                        <ThemedText className="text-gray-600">
-                          {account.role}
-                        </ThemedText>
-                      </StyledView>
-                      <StyledView className="flex-row">
-                        <TouchableOpacity
-                          onPress={() => handleEdit(account)}
-                          className="mr-2"
-                        >
-                          <MaterialIcons name="edit" size={24} color="#666" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleDelete(account.id)}
-                        >
-                          <MaterialIcons name="delete" size={24} color="#666" />
-                        </TouchableOpacity>
-                      </StyledView>
-                    </StyledView>
-                    <StyledView className="flex-row justify-between">
-                      <ThemedText className="text-gray-600">
-                        L2: {account.l2Percentage}%{"\n"}₱{account.l2Winnings}
-                      </ThemedText>
-                      <ThemedText className="text-gray-600">
-                        3D: {account.d3Percentage}%{"\n"}₱{account.d3Winnings}
-                      </ThemedText>
-                    </StyledView>
+            {/* List of accounts */}
+            {subordinates.map((account) => (
+              <StyledView
+                key={account.id}
+                className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4"
+              >
+                <StyledView className="flex-row justify-between items-center mb-2">
+                  <StyledView>
+                    <ThemedText className="font-bold">
+                      {account.username}
+                    </ThemedText>
+                    <ThemedText className="text-gray-600">
+                      {account.user_role}
+                    </ThemedText>
                   </StyledView>
-                ))}
+                  <TouchableOpacity
+                    onPress={() => handleEdit(account)}
+                    className="bg-gray-100 px-4 py-2 rounded-lg"
+                  >
+                    <ThemedText>Edit</ThemedText>
+                  </TouchableOpacity>
+                </StyledView>
+                <StyledView className="flex-row justify-between">
+                  <ThemedText className="text-gray-600">
+                    L2: {account.percentage_l2}%{"\n"}₱{account.winnings_l2}
+                  </ThemedText>
+                  <ThemedText className="text-gray-600">
+                    3D: {account.percentage_l3}%{"\n"}₱{account.winnings_l3}
+                  </ThemedText>
+                </StyledView>
               </StyledView>
-            </StyledView>
+            ))}
           </StyledView>
         </StyledView>
       </ScrollView>
 
-      {/* Create Account Modal */}
+      {/* Edit Modal */}
       <Modal
         isVisible={isModalVisible}
-        onBackdropPress={handleCloseModal}
-        onBackButtonPress={handleCloseModal}
+        onBackdropPress={() => setIsModalVisible(false)}
         useNativeDriver
-        style={{ margin: 0 }}
+        style={{ margin: 20 }}
+        avoidKeyboard
       >
-        <StyledView className="flex-1 bg-black/50 justify-center">
-          <StyledView className="bg-white mx-4 rounded-xl p-4">
-            <StyledView className="flex-row justify-between items-center mb-4">
-              <ThemedText className="text-xl font-bold">
-                Assign Allocation
-              </ThemedText>
-              <TouchableOpacity onPress={handleCloseModal}>
-                <MaterialIcons name="close" size={24} color="#000" />
-              </TouchableOpacity>
+        <StyledView className="bg-white p-4 rounded-lg">
+          <ThemedText className="text-xl font-bold mb-4">
+            Edit Allocation for {selectedUser?.username}
+          </ThemedText>
+
+          <StyledView className="space-y-4">
+            {/* L2 Percentage */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">L2 Percentage</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter percentage"
+                value={l2Percentage}
+                onChangeText={setL2Percentage}
+                keyboardType="numeric"
+                maxLength={3}
+              />
             </StyledView>
 
-            <ScrollView>
-              <StyledView className="space-y-4">
-                {/* Name Input */}
-                <StyledView>
-                  <ThemedText className="text-base mb-2">Name</ThemedText>
-                  <TextInput
-                    className="border border-gray-200 rounded-lg p-3"
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="Enter name"
-                  />
-                </StyledView>
+            {/* L2 Winnings */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">L2 Winnings</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter amount"
+                value={l2Winnings}
+                onChangeText={setL2Winnings}
+                keyboardType="numeric"
+              />
+            </StyledView>
 
-                {/* Updated Account Type Dropdown */}
-                <StyledView>
-                  <ThemedText className="text-base mb-2">
-                    Account Type
-                  </ThemedText>
-                  <Dropdown
-                    data={accountTypeOptions}
-                    labelField="label"
-                    valueField="value"
-                    value={accountType}
-                    onChange={(item) => setAccountType(item.value)}
-                    placeholder="Select account type"
-                    style={{
-                      height: 50,
-                      borderColor: "#E5E7EB",
-                      borderWidth: 1,
-                      borderRadius: 8,
-                      paddingHorizontal: 16,
-                    }}
-                  />
-                </StyledView>
+            {/* 3D Percentage */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">3D Percentage</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter percentage"
+                value={d3Percentage}
+                onChangeText={setD3Percentage}
+                keyboardType="numeric"
+                maxLength={3}
+              />
+            </StyledView>
 
-                {/* L2 Percentage */}
-                <StyledView>
-                  <ThemedText className="text-base mb-2">
-                    L2 Percentage (0%)
-                  </ThemedText>
-                  <TextInput
-                    className="border border-gray-200 rounded-lg p-3"
-                    value={l2Percentage}
-                    onChangeText={setL2Percentage}
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                </StyledView>
+            {/* 3D Winnings */}
+            <StyledView>
+              <ThemedText className="text-base mb-2">3D Winnings</ThemedText>
+              <TextInput
+                className="border border-gray-200 rounded-lg p-3 bg-white"
+                placeholder="Enter amount"
+                value={d3Winnings}
+                onChangeText={setD3Winnings}
+                keyboardType="numeric"
+              />
+            </StyledView>
 
-                {/* 3D Percentage */}
-                <StyledView>
-                  <ThemedText className="text-base mb-2">
-                    3D Percentage (0%)
-                  </ThemedText>
-                  <TextInput
-                    className="border border-gray-200 rounded-lg p-3"
-                    value={d3Percentage}
-                    onChangeText={setD3Percentage}
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                </StyledView>
-
-                {/* L2 Winnings */}
-                <StyledView>
-                  <ThemedText className="text-base mb-2">
-                    L2 Winnings (₱)
-                  </ThemedText>
-                  <TextInput
-                    className="border border-gray-200 rounded-lg p-3"
-                    value={l2Winnings}
-                    onChangeText={setL2Winnings}
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                </StyledView>
-
-                {/* 3D Winnings */}
-                <StyledView>
-                  <ThemedText className="text-base mb-2">
-                    3D Winnings (₱)
-                  </ThemedText>
-                  <TextInput
-                    className="border border-gray-200 rounded-lg p-3"
-                    value={d3Winnings}
-                    onChangeText={setD3Winnings}
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                </StyledView>
-
-                {/* Updated Save Button */}
-                <TouchableOpacity
-                  className="bg-black py-3 rounded-lg mt-4"
-                  onPress={handleSave}
-                >
-                  <ThemedText className="text-white text-center font-semibold">
-                    {isEditing ? "Update Allocation" : "Assign Allocation"}
-                  </ThemedText>
-                </TouchableOpacity>
-              </StyledView>
-            </ScrollView>
+            {/* Save Button */}
+            <TouchableOpacity
+              className="bg-black py-3 rounded-lg mt-4"
+              onPress={handleSaveAllocation}
+            >
+              <ThemedText className="text-white text-center font-semibold">
+                Save Allocation
+              </ThemedText>
+            </TouchableOpacity>
           </StyledView>
         </StyledView>
       </Modal>

@@ -1,30 +1,64 @@
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack } from "expo-router";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export default function AdminLayout() {
-  const { user } = useCurrentUser();
-
-  // Protect admin routes
-  if (!user || user.role !== "admin") {
-    return null;
-  }
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack
-        screenOptions={{
+    <Stack>
+      <Stack.Screen
+        name="dashboard"
+        options={{
+          title: "Admin Dashboard",
           headerShown: false,
-          headerTitle: "Admin Dashboard",
         }}
-      >
-        <Stack.Screen name="dashboard" />
-        <Stack.Screen name="percentage" />
-        <Stack.Screen name="results" />
-        <Stack.Screen name="daily-bets" />
-        <Stack.Screen name="history" />
-        <Stack.Screen name="limits" />
-      </Stack>
-    </GestureHandlerRootView>
+      />
+      <Stack.Screen
+        name="users"
+        options={{
+          title: "User Management",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="percentage"
+        options={{
+          title: "Percentage Management",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="results"
+        options={{
+          title: "Draw Results",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="daily-bets"
+        options={{
+          title: "Daily Bets",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="history"
+        options={{
+          title: "Bet History",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="limits"
+        options={{
+          title: "Bet Limits",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="audit"
+        options={{
+          title: "Audit Logs",
+          headerShown: false,
+        }}
+      />
+    </Stack>
   );
 }
