@@ -3,11 +3,12 @@ import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { router } from "expo-router";
 import { Dropdown } from "react-native-element-dropdown";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Modal from "react-native-modal";
+import { supabase } from "@/lib/supabase";
 
 import { ThemedText } from "@/components/ThemedText";
 
@@ -16,10 +17,10 @@ const StyledSafeAreaView = styled(SafeAreaView);
 
 interface DrawResult {
   id: string;
-  date: string;
-  time: string;
-  l2Result: string;
-  d3Result: string;
+  draw_date: string;
+  draw_time: string;
+  l2_result: string;
+  d3_result: string;
 }
 
 // Helper function to format date
@@ -29,6 +30,25 @@ function formatDate(date: Date) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+// Helper function to convert 24h time to 12h format
+function formatTimeTo12Hour(time24: string): string {
+  const [hours] = time24.split(":");
+  const hour = parseInt(hours, 10);
+
+  if (hour === 11) return "11 AM";
+  if (hour === 17) return "5 PM";
+  if (hour === 21) return "9 PM";
+  return time24; // fallback
+}
+
+// Helper function to convert 12h time to 24h format
+function formatTimeTo24Hour(time12: string): string {
+  if (time12 === "11 AM") return "11:00:00";
+  if (time12 === "5 PM") return "17:00:00";
+  if (time12 === "9 PM") return "21:00:00";
+  return time12; // fallback
 }
 
 // get today's date
@@ -44,9 +64,9 @@ const drawSchedules = [
 ];
 
 const timeSchedules = [
-  { label: "11 AM", value: "11:00" },
-  { label: "5 PM", value: "17:00" },
-  { label: "9 PM", value: "21:00" },
+  { label: "11 AM", value: "11:00:00" },
+  { label: "5 PM", value: "17:00:00" },
+  { label: "9 PM", value: "21:00:00" },
 ];
 
 export default function ResultsScreen() {
@@ -54,30 +74,77 @@ export default function ResultsScreen() {
   const [selectedTime, setSelectedTime] = useState("");
   const [l2Result, setL2Result] = useState("");
   const [d3Result, setD3Result] = useState("");
-  const [results, setResults] = useState<DrawResult[]>([
-    {
-      id: "1",
-      date: formatDate(dateToday),
-      time: "11 AM",
-      l2Result: "23",
-      d3Result: "712",
-    },
-  ]);
+  const [results, setResults] = useState<DrawResult[]>([]);
   const [filterDate, setFilterDate] = useState("");
   const [filterTime, setFilterTime] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [filterMonth, setFilterMonth] = useState(new Date());
+  const [filterMonth, setFilterMonth] = useState<Date | null>(null);
   const scrollViewRef = useRef(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const timeOptions = [
     { label: "All", value: "" },
-    { label: "11 AM", value: "11 AM" },
-    { label: "5 PM", value: "5 PM" },
-    { label: "9 PM", value: "9 PM" },
+    { label: "11 AM", value: "11:00:00" },
+    { label: "5 PM", value: "17:00:00" },
+    { label: "9 PM", value: "21:00:00" },
   ];
+
+  // Fetch results on component mount
+  useEffect(() => {
+    fetchResults();
+  }, [filterMonth, filterTime]);
+
+  const fetchResults = async () => {
+    try {
+      let query = supabase
+        .from("draw_results")
+        .select("*")
+        .order("draw_date", { ascending: false })
+        .order("draw_time", { ascending: false });
+
+      // Date filtering
+      if (filterMonth) {
+        const selectedDate = filterMonth.toISOString().split("T")[0];
+        console.log("Selected date for filtering:", selectedDate);
+        query = query.eq("draw_date", selectedDate);
+      }
+
+      // Time filtering
+      if (filterTime && filterTime !== "All") {
+        const timeValue = timeSchedules.find(
+          (t) => t.label === filterTime
+        )?.value;
+        if (timeValue) {
+          query = query.eq("draw_time", timeValue);
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching results:", error);
+        Alert.alert("Error", "Failed to fetch results");
+        return;
+      }
+
+      console.log("Fetched results:", data);
+      setResults(data || []);
+    } catch (error) {
+      console.error("Error:", error);
+      Alert.alert("Error", "An unexpected error occurred");
+    }
+  };
+
+  // Add clear filters function
+  const handleClearFilters = () => {
+    setFilterMonth(null);
+    setFilterTime("");
+    setFilterDate("");
+    fetchResults();
+  };
 
   const handleCloseModal = () => {
     setIsModalVisible(false);
@@ -89,68 +156,80 @@ export default function ResultsScreen() {
     setSelectedId(null);
   };
 
-  const handleSaveResults = () => {
+  const handleSaveResults = async () => {
     if (!selectedSchedule || !selectedTime || !l2Result || !d3Result) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
-    const selectedDraw = drawSchedules.find(
-      (s) => s.value === selectedSchedule
-    );
-    const selectedTimeOption = timeSchedules.find(
-      (t) => t.value === selectedTime
-    );
+    try {
+      setIsLoading(true);
 
-    if (!selectedDraw || !selectedTimeOption) return;
+      const newResult = {
+        draw_date: selectedSchedule,
+        draw_time: selectedTime,
+        l2_result: l2Result.padStart(2, "0"),
+        d3_result: d3Result.padStart(3, "0"),
+        ...(isEditing && { id: selectedId }),
+      };
 
-    const newResult: DrawResult = {
-      id: isEditing ? selectedId! : Date.now().toString(),
-      date: selectedDraw.label,
-      time: selectedTimeOption.label,
-      l2Result,
-      d3Result,
-    };
-
-    setResults((prev) => {
+      let error;
       if (isEditing) {
-        return prev.map((result) =>
-          result.id === selectedId ? newResult : result
-        );
+        const { error: updateError } = await supabase
+          .from("draw_results")
+          .update(newResult)
+          .eq("id", selectedId);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from("draw_results")
+          .insert([newResult]);
+        error = insertError;
       }
-      return [newResult, ...prev];
-    });
 
-    handleCloseModal();
+      if (error) throw error;
 
-    Alert.alert("Success", "Results saved successfully");
-  };
-
-  const handleEditResult = (resultId: string) => {
-    const resultToEdit = results.find((r) => r.id === resultId);
-    if (!resultToEdit) return;
-
-    setIsEditing(true);
-    setSelectedId(resultId);
-
-    const matchingSchedule = drawSchedules.find(
-      (s) => s.label === resultToEdit.date
-    );
-    const matchingTime = timeSchedules.find(
-      (t) => t.label === resultToEdit.time
-    );
-
-    if (matchingSchedule && matchingTime) {
-      setSelectedSchedule(matchingSchedule.value);
-      setSelectedTime(matchingTime.value);
-      setL2Result(resultToEdit.l2Result);
-      setD3Result(resultToEdit.d3Result);
+      handleCloseModal();
+      fetchResults();
+      Alert.alert(
+        "Success",
+        `Results ${isEditing ? "updated" : "saved"} successfully`
+      );
+    } catch (error) {
+      console.error("Error saving results:", error);
+      Alert.alert(
+        "Error",
+        `Failed to ${isEditing ? "update" : "save"} results`
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsModalVisible(true);
   };
 
-  const handleDeleteResult = (resultId: string) => {
+  const handleEditResult = async (resultId: string) => {
+    try {
+      const { data: result, error } = await supabase
+        .from("draw_results")
+        .select("*")
+        .eq("id", resultId)
+        .single();
+
+      if (error) throw error;
+
+      setIsEditing(true);
+      setSelectedId(resultId);
+      setSelectedSchedule(result.draw_date);
+      setSelectedTime(result.draw_time);
+      setL2Result(result.l2_result);
+      setD3Result(result.d3_result);
+      setIsModalVisible(true);
+    } catch (error) {
+      console.error("Error fetching result:", error);
+      Alert.alert("Error", "Failed to fetch result details");
+    }
+  };
+
+  const handleDeleteResult = async (resultId: string) => {
     Alert.alert(
       "Delete Result",
       "Are you sure you want to delete this result?",
@@ -162,10 +241,21 @@ export default function ResultsScreen() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
-            setResults((prev) =>
-              prev.filter((result) => result.id !== resultId)
-            );
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("draw_results")
+                .delete()
+                .eq("id", resultId);
+
+              if (error) throw error;
+
+              fetchResults();
+              Alert.alert("Success", "Result deleted successfully");
+            } catch (error) {
+              console.error("Error deleting result:", error);
+              Alert.alert("Error", "Failed to delete result");
+            }
           },
         },
       ]
@@ -175,26 +265,25 @@ export default function ResultsScreen() {
   const handleMonthChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
+      console.log("Selected date in handleMonthChange:", selectedDate); // Debug log
       setFilterMonth(selectedDate);
-      setFilterDate(
-        selectedDate.toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })
-      );
+
+      // Update the filterDate display
+      const formattedDate = selectedDate.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+      setFilterDate(formattedDate);
     }
   };
 
-  const handleTimeFilter = (time: string) => {
-    setFilterTime(time);
+  const handleTimeFilter = (item: { label: string; value: string }) => {
+    setFilterTime(item.label === "All" ? "" : item.label);
   };
 
-  const filteredResults = results.filter((result) => {
-    const matchesDate = !filterDate || result.date === filterDate;
-    const matchesTime = !filterTime || result.time === filterTime;
-    return matchesDate && matchesTime;
-  });
+  // Remove the local filtering since we're doing it in the database
+  const filteredResults = results;
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
@@ -232,36 +321,54 @@ export default function ResultsScreen() {
             </ThemedText>
 
             {/* Filters in center */}
-            <StyledView className="flex-row justify-center items-center space-x-4 mb-6 border-b border-gray-200 pb-4">
-              <TouchableOpacity
-                className="flex-1 flex-row justify-center items-center space-x-2 bg-gray-100 py-2 rounded-lg"
-                onPress={() => setShowDatePicker(true)}
-              >
-                <MaterialIcons name="calendar-today" size={20} color="#000" />
-                <ThemedText>Pick a month</ThemedText>
-              </TouchableOpacity>
-              <Dropdown
-                data={timeOptions}
-                labelField="label"
-                valueField="value"
-                placeholder="All Times"
-                value={filterTime}
-                onChange={(item) => handleTimeFilter(item.value)}
-                style={{
-                  flex: 1,
-                  height: 36,
-                  borderColor: "#E5E7EB",
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  paddingHorizontal: 8,
-                  backgroundColor: "#F3F4F6",
-                }}
-              />
+            <StyledView className="space-y-4">
+              <StyledView className="flex-row justify-center items-center space-x-4 mb-6 border-b border-gray-200 pb-4">
+                <TouchableOpacity
+                  className="flex-1 flex-row justify-center items-center space-x-2 bg-gray-100 py-2 rounded-lg"
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <MaterialIcons name="calendar-today" size={20} color="#000" />
+                  <ThemedText>{filterDate || "Pick a date"}</ThemedText>
+                </TouchableOpacity>
+                <Dropdown
+                  data={timeOptions}
+                  labelField="label"
+                  valueField="label"
+                  placeholder="All"
+                  value={filterTime}
+                  onChange={handleTimeFilter}
+                  style={{
+                    flex: 1,
+                    height: 36,
+                    borderColor: "#E5E7EB",
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingHorizontal: 8,
+                    backgroundColor: "#F3F4F6",
+                  }}
+                />
+              </StyledView>
+
+              {/* Add Clear Filters button */}
+              {(filterMonth || filterTime) && (
+                <TouchableOpacity
+                  className="flex-row justify-center items-center bg-gray-200 py-2 rounded-lg mb-4"
+                  onPress={handleClearFilters}
+                >
+                  <MaterialIcons
+                    name="clear"
+                    size={20}
+                    color="#000"
+                    className="mr-2"
+                  />
+                  <ThemedText>Clear Filters</ThemedText>
+                </TouchableOpacity>
+              )}
             </StyledView>
 
             {showDatePicker && (
               <DateTimePicker
-                value={filterMonth}
+                value={filterMonth || new Date()}
                 mode="date"
                 display="default"
                 onChange={handleMonthChange}
@@ -282,13 +389,13 @@ export default function ResultsScreen() {
                   >
                     <StyledView className="space-y-2">
                       <ThemedText className="text-lg font-bold">
-                        {result.date}
+                        {formatDate(new Date(result.draw_date))}
                       </ThemedText>
                       <ThemedText className="text-gray-500">
-                        Time: {result.time}
+                        Time: {formatTimeTo12Hour(result.draw_time)}
                       </ThemedText>
-                      <ThemedText>L2: {result.l2Result}</ThemedText>
-                      <ThemedText>3D: {result.d3Result}</ThemedText>
+                      <ThemedText>L2: {result.l2_result}</ThemedText>
+                      <ThemedText>3D: {result.d3_result}</ThemedText>
                     </StyledView>
                     <StyledView className="flex-row items-center space-x-3">
                       <TouchableOpacity
