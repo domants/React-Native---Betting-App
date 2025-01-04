@@ -3,6 +3,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { Alert } from "react-native";
+import { supabase } from "@/lib/supabase";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -22,7 +24,9 @@ interface AdminOption {
     | "/(admin)/daily-bets"
     | "/(admin)/history"
     | "/(admin)/limits"
-    | "/(admin)/audit";
+    | "/(admin)/audit"
+    | "/(admin)/users"
+    | null;
 }
 
 const adminOptions: AdminOption[] = [
@@ -68,10 +72,31 @@ const adminOptions: AdminOption[] = [
     icon: "receipt-long",
     route: "/(admin)/audit",
   },
+  {
+    title: "Logout",
+    description: "Sign out of your account",
+    icon: "logout",
+    route: null,
+  },
 ];
 
 export default function AdminDashboard() {
   const { user, isLoading } = useCurrentUser();
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      Alert.alert("Success", "You have been logged out successfully", [
+        {
+          text: "OK",
+          onPress: () => router.replace("/(auth)/login"),
+        },
+      ]);
+    } catch (error) {
+      console.error("Error signing out:", error);
+      Alert.alert("Error", "Failed to sign out. Please try again.");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -95,16 +120,28 @@ export default function AdminDashboard() {
           {adminOptions.map((option) => (
             <TouchableOpacity
               key={option.title}
-              className="w-[48%] bg-white p-4 rounded-xl mb-4 border border-gray-100"
-              onPress={() => router.push(option.route as any)}
+              className={`w-[48%] bg-white p-4 rounded-xl mb-4 border border-gray-100 ${
+                option.title === "Logout" ? "border-red-200" : ""
+              }`}
+              onPress={() => {
+                if (option.route) {
+                  router.push(option.route as any);
+                } else if (option.title === "Logout") {
+                  handleSignOut();
+                }
+              }}
             >
               <MaterialIcons
                 name={option.icon}
                 size={24}
-                color="#6F13F5"
+                color={option.title === "Logout" ? "#EF4444" : "#6F13F5"}
                 style={{ marginBottom: 8 }}
               />
-              <ThemedText className="text-lg font-semibold mb-1">
+              <ThemedText
+                className={`text-lg font-semibold mb-1 ${
+                  option.title === "Logout" ? "text-red-500" : ""
+                }`}
+              >
                 {option.title}
               </ThemedText>
               <ThemedText className="text-sm text-gray-600">

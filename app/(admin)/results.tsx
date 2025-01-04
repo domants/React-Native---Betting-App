@@ -9,6 +9,7 @@ import { Dropdown } from "react-native-element-dropdown";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Modal from "react-native-modal";
 import { supabase } from "@/lib/supabase";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 import { ThemedText } from "@/components/ThemedText";
 
@@ -56,20 +57,31 @@ const today = new Date();
 const dateToday = new Date(today);
 dateToday.setDate(dateToday.getDate());
 
-const drawSchedules = [
-  {
-    label: formatDate(dateToday),
-    value: dateToday.toISOString().split("T")[0],
-  },
-];
-
 const timeSchedules = [
   { label: "11 AM", value: "11:00:00" },
   { label: "5 PM", value: "17:00:00" },
   { label: "9 PM", value: "21:00:00" },
 ];
 
+const verifyUserRole = async (userId: string) => {
+  if (!userId) return null;
+
+  const { data: userData, error } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    console.error("Role fetch error:", error);
+    return null;
+  }
+
+  return userData?.role || null;
+};
+
 export default function ResultsScreen() {
+  const { user } = useCurrentUser();
   const [selectedSchedule, setSelectedSchedule] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [l2Result, setL2Result] = useState("");
@@ -84,6 +96,7 @@ export default function ResultsScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showAddDatePicker, setShowAddDatePicker] = useState(false);
 
   const timeOptions = [
     { label: "All", value: "" },
@@ -92,13 +105,18 @@ export default function ResultsScreen() {
     { label: "9 PM", value: "21:00:00" },
   ];
 
-  // Fetch results on component mount
+  // Fetch results on component mount and when filters change
   useEffect(() => {
     fetchResults();
   }, [filterMonth, filterTime]);
 
   const fetchResults = async () => {
     try {
+      console.log("Fetching results with filters:", {
+        date: filterMonth ? filterMonth.toISOString().split("T")[0] : "none",
+        time: filterTime,
+      });
+
       let query = supabase
         .from("draw_results")
         .select("*")
@@ -107,8 +125,11 @@ export default function ResultsScreen() {
 
       // Date filtering
       if (filterMonth) {
-        const selectedDate = filterMonth.toISOString().split("T")[0];
-        console.log("Selected date for filtering:", selectedDate);
+        // Ensure we're using the correct date by handling timezone offset
+        const date = new Date(filterMonth);
+        date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+        const selectedDate = date.toISOString().split("T")[0];
+        console.log("Adjusted date for filtering:", selectedDate);
         query = query.eq("draw_date", selectedDate);
       }
 
@@ -139,11 +160,32 @@ export default function ResultsScreen() {
   };
 
   // Add clear filters function
-  const handleClearFilters = () => {
+  const handleClearFilters = async () => {
+    console.log("Clearing filters");
     setFilterMonth(null);
     setFilterTime("");
     setFilterDate("");
-    fetchResults();
+
+    // Fetch all results immediately after clearing filters
+    try {
+      const { data, error } = await supabase
+        .from("draw_results")
+        .select("*")
+        .order("draw_date", { ascending: false })
+        .order("draw_time", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching results after clear:", error);
+        Alert.alert("Error", "Failed to fetch results");
+        return;
+      }
+
+      console.log("Fetched results after clear:", data);
+      setResults(data || []);
+    } catch (error) {
+      console.error("Error:", error);
+      Alert.alert("Error", "An unexpected error occurred");
+    }
   };
 
   const handleCloseModal = () => {
@@ -165,57 +207,164 @@ export default function ResultsScreen() {
     try {
       setIsLoading(true);
 
+      if (!user) {
+        Alert.alert("Error", "You must be logged in to perform this action");
+        return;
+      }
+
+      if (user.role !== "Admin") {
+        Alert.alert(
+          "Error",
+          "You do not have permission to perform this action"
+        );
+        return;
+      }
+
+      // Check for existing draw result with same date and time
+      const { data: existingDraws, error: checkError } = await supabase
+        .from("draw_results")
+        .select("*")
+        .eq("draw_date", selectedSchedule)
+        .eq("draw_time", selectedTime);
+
+      if (checkError) {
+        console.error("Error checking existing draws:", checkError);
+        throw checkError;
+      }
+
+      console.log("Checking for duplicates:", {
+        existingDraws,
+        selectedId,
+        selectedSchedule,
+        selectedTime,
+      });
+
+      // For updates, filter out the current record from the check
+      const duplicateExists = isEditing
+        ? existingDraws?.some(
+            (draw) =>
+              draw.id !== selectedId &&
+              draw.draw_date === selectedSchedule &&
+              draw.draw_time === selectedTime
+          )
+        : existingDraws?.length > 0;
+
+      if (duplicateExists) {
+        Alert.alert(
+          "Duplicate Draw Result",
+          `A draw result already exists for ${formatDate(
+            new Date(selectedSchedule)
+          )} at ${formatTimeTo12Hour(selectedTime)}.`
+        );
+        return;
+      }
+
       const newResult = {
         draw_date: selectedSchedule,
         draw_time: selectedTime,
         l2_result: l2Result.padStart(2, "0"),
         d3_result: d3Result.padStart(3, "0"),
-        ...(isEditing && { id: selectedId }),
       };
+      console.log("Attempting to save result:", newResult);
 
       let error;
-      if (isEditing) {
+      if (isEditing && selectedId) {
+        console.log("Updating existing record with ID:", selectedId);
+
+        // Try direct update with explicit fields
         const { error: updateError } = await supabase
           .from("draw_results")
-          .update(newResult)
-          .eq("id", selectedId);
+          .upsert(
+            {
+              id: selectedId,
+              ...newResult,
+            },
+            {
+              onConflict: "id",
+            }
+          );
+
         error = updateError;
+        if (error) {
+          console.error("Update error:", error);
+          throw error;
+        }
       } else {
+        console.log("Inserting new record");
         const { error: insertError } = await supabase
           .from("draw_results")
           .insert([newResult]);
         error = insertError;
+        if (error) {
+          console.error("Insert error:", error);
+          throw error;
+        }
       }
 
-      if (error) throw error;
-
       handleCloseModal();
-      fetchResults();
+      await fetchResults();
       Alert.alert(
         "Success",
         `Results ${isEditing ? "updated" : "saved"} successfully`
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving results:", error);
-      Alert.alert(
-        "Error",
-        `Failed to ${isEditing ? "update" : "save"} results`
-      );
+      // Check for unique constraint violation
+      if (error?.code === "23505") {
+        Alert.alert(
+          "Error",
+          `A draw result already exists for ${formatDate(
+            new Date(selectedSchedule)
+          )} at ${formatTimeTo12Hour(selectedTime)}.`
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          `Failed to ${isEditing ? "update" : "save"} results: ${
+            error.message || JSON.stringify(error)
+          }`
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Add sign out handler
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      Alert.alert(
+        "Session Expired",
+        "Your session has expired. Please log in again.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.replace("/(auth)/login"),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error signing out:", error);
+      Alert.alert("Error", "Failed to sign out. Please try again.");
+    }
+  };
+
   const handleEditResult = async (resultId: string) => {
     try {
+      console.log("Fetching result with ID:", resultId);
       const { data: result, error } = await supabase
         .from("draw_results")
         .select("*")
         .eq("id", resultId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching result:", error);
+        throw error;
+      }
 
+      console.log("Fetched result:", result);
       setIsEditing(true);
       setSelectedId(resultId);
       setSelectedSchedule(result.draw_date);
@@ -224,7 +373,7 @@ export default function ResultsScreen() {
       setD3Result(result.d3_result);
       setIsModalVisible(true);
     } catch (error) {
-      console.error("Error fetching result:", error);
+      console.error("Error in handleEditResult:", error);
       Alert.alert("Error", "Failed to fetch result details");
     }
   };
@@ -243,17 +392,22 @@ export default function ResultsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              console.log("Attempting to delete result with ID:", resultId);
               const { error } = await supabase
                 .from("draw_results")
                 .delete()
                 .eq("id", resultId);
 
-              if (error) throw error;
+              if (error) {
+                console.error("Error deleting result:", error);
+                throw error;
+              }
 
-              fetchResults();
+              console.log("Successfully deleted result");
+              await fetchResults();
               Alert.alert("Success", "Result deleted successfully");
             } catch (error) {
-              console.error("Error deleting result:", error);
+              console.error("Error in handleDeleteResult:", error);
               Alert.alert("Error", "Failed to delete result");
             }
           },
@@ -265,11 +419,23 @@ export default function ResultsScreen() {
   const handleMonthChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      console.log("Selected date in handleMonthChange:", selectedDate); // Debug log
-      setFilterMonth(selectedDate);
+      // Adjust the date for timezone
+      const adjustedDate = new Date(selectedDate);
+      adjustedDate.setMinutes(
+        adjustedDate.getMinutes() + adjustedDate.getTimezoneOffset()
+      );
+
+      console.log("Selected date:", {
+        original: selectedDate,
+        adjusted: adjustedDate,
+        isoString: adjustedDate.toISOString(),
+        dateOnly: adjustedDate.toISOString().split("T")[0],
+      });
+
+      setFilterMonth(adjustedDate);
 
       // Update the filterDate display
-      const formattedDate = selectedDate.toLocaleDateString("en-US", {
+      const formattedDate = adjustedDate.toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
         year: "numeric",
@@ -280,6 +446,13 @@ export default function ResultsScreen() {
 
   const handleTimeFilter = (item: { label: string; value: string }) => {
     setFilterTime(item.label === "All" ? "" : item.label);
+  };
+
+  const handleAddDateChange = (event: any, selectedDate?: Date) => {
+    setShowAddDatePicker(false);
+    if (selectedDate) {
+      setSelectedSchedule(selectedDate.toISOString().split("T")[0]);
+    }
   };
 
   // Remove the local filtering since we're doing it in the database
@@ -445,22 +618,36 @@ export default function ResultsScreen() {
                   </ThemedText>
                   <StyledView>
                     <ThemedText className="text-base mb-2">Date</ThemedText>
-                    <Dropdown
-                      data={drawSchedules}
-                      labelField="label"
-                      valueField="value"
-                      placeholder="Select draw date"
-                      value={selectedSchedule}
-                      onChange={(item) => setSelectedSchedule(item.value)}
-                      style={{
-                        height: 50,
-                        borderColor: "#E5E7EB",
-                        borderWidth: 1,
-                        borderRadius: 8,
-                        paddingHorizontal: 16,
-                      }}
-                    />
+                    <TouchableOpacity
+                      className="flex-row justify-between items-center border border-gray-200 rounded-lg p-3"
+                      onPress={() => setShowAddDatePicker(true)}
+                    >
+                      <ThemedText>
+                        {selectedSchedule
+                          ? formatDate(new Date(selectedSchedule))
+                          : "Select date"}
+                      </ThemedText>
+                      <MaterialIcons
+                        name="calendar-today"
+                        size={20}
+                        color="#000"
+                      />
+                    </TouchableOpacity>
                   </StyledView>
+
+                  {showAddDatePicker && (
+                    <DateTimePicker
+                      value={
+                        selectedSchedule
+                          ? new Date(selectedSchedule)
+                          : new Date()
+                      }
+                      mode="date"
+                      display="default"
+                      onChange={handleAddDateChange}
+                    />
+                  )}
+
                   <StyledView>
                     <ThemedText className="text-base mb-2">Time</ThemedText>
                     <Dropdown
@@ -522,11 +709,7 @@ export default function ResultsScreen() {
                   <ThemedText>
                     Date/Time:{" "}
                     {selectedSchedule
-                      ? `${
-                          drawSchedules.find(
-                            (s) => s.value === selectedSchedule
-                          )?.label
-                        }, ${
+                      ? `${formatDate(new Date(selectedSchedule))}, ${
                           timeSchedules.find((t) => t.value === selectedTime)
                             ?.label || ""
                         }`

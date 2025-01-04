@@ -1,4 +1,14 @@
--- Create draw_results table
+-- First drop all existing policies
+DROP POLICY IF EXISTS "draw_results_select_policy" ON draw_results;
+DROP POLICY IF EXISTS "draw_results_insert_policy" ON draw_results;
+DROP POLICY IF EXISTS "draw_results_update_policy" ON draw_results;
+DROP POLICY IF EXISTS "draw_results_delete_policy" ON draw_results;
+
+-- Disable and re-enable RLS
+ALTER TABLE draw_results DISABLE ROW LEVEL SECURITY;
+ALTER TABLE draw_results ENABLE ROW LEVEL SECURITY;
+
+-- Create draw_results table if not exists
 CREATE TABLE IF NOT EXISTS draw_results (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     draw_date DATE NOT NULL,
@@ -7,20 +17,7 @@ CREATE TABLE IF NOT EXISTS draw_results (
     d3_result VARCHAR(3) NOT NULL CHECK (d3_result ~ '^[0-9]{3}$')
 );
 
--- Drop any existing triggers
-DROP TRIGGER IF EXISTS update_draw_results_updated_at ON draw_results;
-DROP TRIGGER IF EXISTS draw_results_audit_fields ON draw_results;
-
--- Add RLS policies
-ALTER TABLE draw_results ENABLE ROW LEVEL SECURITY;
-
--- Drop existing policies if any
-DROP POLICY IF EXISTS "draw_results_select_policy" ON draw_results;
-DROP POLICY IF EXISTS "draw_results_insert_policy" ON draw_results;
-DROP POLICY IF EXISTS "draw_results_update_policy" ON draw_results;
-DROP POLICY IF EXISTS "draw_results_delete_policy" ON draw_results;
-
--- Create policies
+-- Create policies with explicit grants
 CREATE POLICY "draw_results_select_policy" 
     ON draw_results FOR SELECT 
     TO authenticated 
@@ -60,4 +57,7 @@ CREATE POLICY "draw_results_delete_policy"
             AND role = 'Admin'
             AND deleted_at IS NULL
         )
-    ); 
+    );
+
+-- Grant necessary permissions
+GRANT ALL ON draw_results TO authenticated; 
