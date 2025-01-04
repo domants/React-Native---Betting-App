@@ -140,22 +140,27 @@ export async function updateUserPercentage(
 
 export async function getSubordinates() {
   const { data, error } = await supabase
-    .from("Users")
+    .from("users")
     .select(
       `
       id,
-      username,
-      user_role,
+      name,
+      role,
       percentage_l2,
       percentage_l3,
       winnings_l2,
       winnings_l3
     `
     )
-    .in("user_role", ["coordinator", "sub_coordinator", "usher"])
-    .order("user_role", { ascending: true });
+    .in("role", ["Coordinator", "Sub-Coordinator", "Usher"])
+    .order("role", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.error("Error fetching subordinates:", error);
+    throw error;
+  }
+
+  console.log("Fetched subordinates:", data);
   return data;
 }
 
@@ -169,60 +174,45 @@ export async function updateUserAllocation(
   }
 ) {
   try {
-    // First check if current user is admin
+    // First check if current user is authenticated
     const { data: currentUser, error: userError } =
       await supabase.auth.getUser();
     if (!currentUser?.user) {
       throw new Error("Not authenticated");
     }
 
-    console.log("Current user:", currentUser.user.id);
+    console.log("Auth user ID:", currentUser.user.id);
+    console.log("Auth user email:", currentUser.user.email);
 
-    // First verify if the user exists before checking role
-    const { data: userExists, error: existsError } = await supabase
-      .from("Users")
-      .select("id")
-      .eq("id", userId)
+    // Get current user's role for debugging - using maybeSingle() instead of single()
+    const { data: userData, error: roleError } = await supabase
+      .from("users")
+      .select("id, email, role")
+      .eq("email", currentUser.user.email)
       .maybeSingle();
 
-    if (existsError) {
-      console.error("User existence check error:", existsError);
-      throw new Error(
-        `Failed to verify user existence: ${existsError.message}`
-      );
-    }
-
-    if (!userExists) {
-      console.error("Target user does not exist:", userId);
-      throw new Error(`User with ID ${userId} does not exist`);
-    }
-
-    // Get current user's role
-    const { data: userData, error: roleError } = await supabase
-      .from("Users")
-      .select("user_role")
-      .eq("id", currentUser.user.id)
-      .single();
-
     if (roleError) {
-      console.error("Role check error:", roleError);
-      throw new Error(`Failed to verify user role: ${roleError.message}`);
+      console.error("Role fetch error:", roleError);
+      throw new Error("Failed to fetch user role");
     }
 
     if (!userData) {
-      throw new Error("User profile not found");
+      console.error("User not found in database");
+      throw new Error("User profile not found in database");
     }
 
-    console.log("User role:", userData.user_role);
+    console.log("Found user data:", userData);
 
-    if (userData.user_role !== "admin") {
+    // Check if user is admin using direct role check - using uppercase 'Admin'
+    if (userData.role !== "Admin") {
+      console.error("User is not admin. Current role:", userData.role);
       throw new Error("Only admins can update user allocations");
     }
 
     // Verify target user exists and get current values
     const { data: targetUser, error: targetError } = await supabase
-      .from("Users")
-      .select("id, user_role, percentage_l2, percentage_l3")
+      .from("users")
+      .select("id, role, percentage_l2, percentage_l3")
       .eq("id", userId)
       .single();
 
@@ -235,83 +225,26 @@ export async function updateUserAllocation(
       throw new Error(`Target user not found with ID: ${userId}`);
     }
 
-    console.log("Target user current values:", targetUser);
+    console.log("Target user found:", targetUser);
+    console.log("Applying updates:", updates);
 
-    // Get all users to validate total percentages
-    const { data: allUsers, error: usersError } = await supabase
-      .from("Users")
-      .select("id, percentage_l2, percentage_l3")
-      .neq("id", userId);
-
-    if (usersError) {
-      console.error("Users fetch error:", usersError);
-      throw new Error("Failed to fetch users for validation");
-    }
-
-    const totalL2 = (allUsers || []).reduce(
-      (sum, user) => sum + (user.percentage_l2 || 0),
-      0
-    );
-    const totalL3 = (allUsers || []).reduce(
-      (sum, user) => sum + (user.percentage_l3 || 0),
-      0
-    );
-
-    console.log("Current totals - L2:", totalL2, "L3:", totalL3);
-    console.log(
-      "Attempting to add - L2:",
-      updates.percentage_l2,
-      "L3:",
-      updates.percentage_l3
-    );
-
-    // Validate percentages
-    if (updates.percentage_l2 && totalL2 + updates.percentage_l2 > 100) {
-      throw new Error(
-        `Total L2 percentage allocation would exceed 100% (current: ${totalL2}, adding: ${updates.percentage_l2})`
-      );
-    }
-    if (updates.percentage_l3 && totalL3 + updates.percentage_l3 > 100) {
-      throw new Error(
-        `Total 3D percentage allocation would exceed 100% (current: ${totalL3}, adding: ${updates.percentage_l3})`
-      );
-    }
-
-    // Prepare update data - keep existing values if not provided
-    const updateData = {
-      percentage_l2: updates.percentage_l2 ?? targetUser.percentage_l2 ?? 0,
-      percentage_l3: updates.percentage_l3 ?? targetUser.percentage_l3 ?? 0,
-      winnings_l2: updates.winnings_l2 ?? 0,
-      winnings_l3: updates.winnings_l3 ?? 0,
-    };
-
-    console.log("Updating user with data:", updateData);
-    console.log("Update query parameters - userId:", userId);
-
-    // Update the user allocation with more detailed error handling
-    const { data, error } = await supabase
-      .from("Users")
-      .update(updateData)
+    // Proceed with the update
+    const { data: updated, error: updateError } = await supabase
+      .from("users")
+      .update(updates)
       .eq("id", userId)
       .select()
       .single();
 
-    if (error) {
-      console.error("Update error details:", error);
-      console.error("Update query failed for user:", userId);
-      console.error("Update data:", updateData);
-      throw new Error(`Failed to update allocation: ${error.message}`);
+    if (updateError) {
+      console.error("Update error:", updateError);
+      throw new Error("Failed to update user allocation");
     }
 
-    if (!data) {
-      console.error("No data returned after update for user:", userId);
-      throw new Error("Failed to update allocation: No data returned");
-    }
-
-    console.log("Update successful. Updated user data:", data);
-    return data;
+    console.log("Update successful:", updated);
+    return updated;
   } catch (error) {
-    console.error("Update error:", error);
+    console.error("Update allocation error:", error);
     throw error;
   }
 }

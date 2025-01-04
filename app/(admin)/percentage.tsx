@@ -26,10 +26,12 @@ export default function PercentageScreen() {
   const [d3Winnings, setD3Winnings] = useState("");
 
   // Fetch subordinates
-  const { data: subordinates = [] } = useQuery({
+  const { data: subordinates = [], isLoading } = useQuery({
     queryKey: ["subordinates"],
     queryFn: getSubordinates,
   });
+
+  console.log("Subordinates data:", subordinates);
 
   // Calculate total allocations
   const totalAllocations = subordinates.reduce(
@@ -118,6 +120,14 @@ export default function PercentageScreen() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <StyledSafeAreaView className="flex-1 bg-[#FDFDFD] justify-center items-center">
+        <ThemedText>Loading...</ThemedText>
+      </StyledSafeAreaView>
+    );
+  }
+
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
       <ScrollView className="flex-1">
@@ -178,10 +188,10 @@ export default function PercentageScreen() {
                 <StyledView className="flex-row justify-between items-center mb-2">
                   <StyledView>
                     <ThemedText className="font-bold">
-                      {account.username}
+                      {account.name}
                     </ThemedText>
                     <ThemedText className="text-gray-600">
-                      {account.user_role}
+                      {account.role}
                     </ThemedText>
                   </StyledView>
                   <TouchableOpacity
@@ -215,7 +225,7 @@ export default function PercentageScreen() {
       >
         <StyledView className="bg-white p-4 rounded-lg">
           <ThemedText className="text-xl font-bold mb-4">
-            Edit Allocation for {selectedUser?.username}
+            Edit Allocation for {selectedUser?.name}
           </ThemedText>
 
           <StyledView className="space-y-4">
@@ -269,13 +279,15 @@ export default function PercentageScreen() {
               />
             </StyledView>
 
-            {/* Save Button */}
             <TouchableOpacity
               className="bg-black py-3 rounded-lg mt-4"
               onPress={handleSaveAllocation}
+              disabled={updateAllocationMutation.isPending}
             >
               <ThemedText className="text-white text-center font-semibold">
-                Save Allocation
+                {updateAllocationMutation.isPending
+                  ? "Saving..."
+                  : "Save Changes"}
               </ThemedText>
             </TouchableOpacity>
           </StyledView>

@@ -9,14 +9,24 @@ export function useCurrentUser() {
   useEffect(() => {
     async function fetchUser() {
       try {
-        const { data } = await supabase.auth.getUser();
-        if (data.user) {
-          const { data: userData } = await supabase
-            .from("Users")
+        const { data: authData } = await supabase.auth.getSession();
+        if (authData.session?.user) {
+          const { data: userData, error } = await supabase
+            .from("users")
             .select("*")
-            .eq("id", data.user.id)
+            .eq("email", authData.session.user.email)
             .single();
-          setUser(userData);
+
+          if (error) {
+            console.error("Error fetching user data:", error);
+            return;
+          }
+
+          setUser({
+            ...userData,
+            username: userData.name,
+            role: userData.role,
+          });
         }
       } catch (error) {
         console.error("Error fetching user:", error);
@@ -25,6 +35,32 @@ export function useCurrentUser() {
       }
     }
     fetchUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        const { data: userData, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("email", session.user.email)
+          .single();
+
+        if (!error && userData) {
+          setUser({
+            ...userData,
+            username: userData.name,
+            role: userData.role,
+          });
+        }
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   return { user, isLoading };

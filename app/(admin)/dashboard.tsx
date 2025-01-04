@@ -6,6 +6,7 @@ import { router } from "expo-router";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { UserRoleHeader } from "@/components/UserRoleHeader";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -70,25 +71,23 @@ const adminOptions: AdminOption[] = [
 ];
 
 export default function AdminDashboard() {
-  const { user } = useCurrentUser();
+  const { user, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return (
+      <StyledSafeAreaView className="flex-1 bg-[#FDFDFD] justify-center items-center">
+        <ThemedText>Loading...</ThemedText>
+      </StyledSafeAreaView>
+    );
+  }
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
       {/* Header */}
-      <StyledView className="p-4">
-        <StyledView className="flex-row justify-between items-start mb-2">
-          <ThemedText className="text-2xl font-bold text-[#6F13F5]">
-            Admin Dashboard
-          </ThemedText>
-          <StyledView className="flex-row items-center">
-            <StyledView className="w-2 h-2 rounded-full bg-green-500 mr-1.5" />
-            <ThemedText className="text-sm text-green-500">Online</ThemedText>
-          </StyledView>
-        </StyledView>
-        <ThemedText className="text-sm text-gray-500">
-          Welcome back, {user?.username}
-        </ThemedText>
-      </StyledView>
+      <UserRoleHeader
+        username={user?.username || ""}
+        role={user?.role || "Admin"}
+      />
 
       {/* Admin Options */}
       <StyledView className="flex-1 p-4">

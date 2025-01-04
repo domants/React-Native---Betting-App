@@ -1,65 +1,93 @@
-import { supabase } from "@/lib/supabase";
-import { User, CreateUserDTO } from "@/lib/types";
+import { supabase } from "../supabase";
+import type { User } from "@/types";
 
-export async function createUser(data: CreateUserDTO) {
-  // First create auth user
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: data.email,
-    password: data.password,
-  });
-
-  if (authError) throw authError;
-
-  // Then create user profile
-  const { data: userData, error: userError } = await supabase
-    .from("users")
-    .insert([
-      {
-        id: authData.user?.id,
-        username: data.username,
-        email: data.email,
-        role: data.role,
-        parent_id: data.parent_id,
-        percentage_balance: data.percentage_balance || 0,
-        winnings_balance: data.winnings_balance || 0,
-      },
-    ])
-    .select()
-    .single();
-
-  if (userError) throw userError;
-  return userData;
+export function getAvailableRoles(
+  currentUserRole: User["role"]
+): User["role"][] {
+  switch (currentUserRole) {
+    case "Admin":
+      // Admin can create any role
+      return ["Admin", "Coordinator", "Sub-Coordinator", "Usher"];
+    case "Coordinator":
+      // Coordinator can create Sub-Coordinators and Ushers
+      return ["Sub-Coordinator", "Usher"];
+    case "Sub-Coordinator":
+      // Sub-Coordinator can only create Ushers
+      return ["Usher"];
+    default:
+      // Ushers can't create any roles
+      return [];
+  }
 }
 
-export async function getUsers() {
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .order("created_at", { ascending: false });
+export async function createUser(userData: {
+  name: string;
+  email: string;
+  password_hash: string;
+  role: User["role"];
+  parent_id?: string;
+}) {
+  try {
+    // First, check if the user has permission to create this role
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (!currentUser.user) throw new Error("Not authenticated");
 
-  if (error) throw error;
-  return data;
+    const { data: userRole } = await supabase
+      .from("users")
+      .select("role")
+      .eq("email", currentUser.user.email)
+      .single();
+
+    if (!userRole) throw new Error("User role not found");
+
+    const availableRoles = getAvailableRoles(userRole.role);
+    if (!availableRoles.includes(userData.role)) {
+      throw new Error("You don't have permission to create this role");
+    }
+
+    // Create the user with service role client
+    const { data, error } = await supabase
+      .from("users")
+      .insert([userData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error details:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error creating user:", error);
+    throw error;
+  }
 }
 
-export async function getUsersByParentId(parentId: string) {
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("parent_id", parentId)
-    .order("created_at", { ascending: false });
+export async function getSubordinates() {
+  try {
+    const { data: currentUser } = await supabase.auth.getUser();
+    if (!currentUser.user) throw new Error("No authenticated user");
 
-  if (error) throw error;
-  return data;
-}
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("email", currentUser.user.email)
+      .single();
 
-export async function updateUser(id: string, updates: Partial<User>) {
-  const { data, error } = await supabase
-    .from("users")
-    .update(updates)
-    .eq("id", id)
-    .select()
-    .single();
+    if (userError) throw userError;
 
-  if (error) throw error;
-  return data;
+    // Get subordinates based on role
+    const { data: subordinates, error } = await supabase
+      .from("users")
+      .select("*")
+      .neq("id", currentUser.user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return subordinates;
+  } catch (error) {
+    console.error("Error getting subordinates:", error);
+    throw error;
+  }
 }

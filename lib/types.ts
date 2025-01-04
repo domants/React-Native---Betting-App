@@ -1,16 +1,14 @@
 // Core types for the admin features
 export interface User {
   id: string;
-  username: string;
+  name: string;
   email: string;
-  role: "admin" | "coordinator" | "sub_coordinator" | "usher";
-  parent_id: string | null;
-  percentage_l2: number;
-  percentage_l3: number;
-  winnings_l2: number;
-  winnings_l3: number;
+  role: "Admin" | "Coordinator" | "Sub-Coordinator" | "Usher";
+  parent_id?: string;
   created_at: string;
-  updated_at: string;
+  percentage_balance: number;
+  winnings_balance: number;
+  password_hash: string;
 }
 
 export interface DrawResult {

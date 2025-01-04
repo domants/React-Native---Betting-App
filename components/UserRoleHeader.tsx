@@ -11,6 +11,18 @@ interface UserRoleHeaderProps {
   role: string;
 }
 
+const formatDate = (date: Date) => {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Manila", // Set the timezone to Philippines
+  }).format(date);
+};
+
+const today = new Date();
+
 export function UserRoleHeader({ username, role }: UserRoleHeaderProps) {
   return (
     <ThemedView className="p-4 border-b border-gray-200">
@@ -29,7 +41,9 @@ export function UserRoleHeader({ username, role }: UserRoleHeaderProps) {
         </StyledView>
       </StyledView>
       <StyledView className="flex-row justify-between items-center">
-        <ThemedText className="text-sm text-gray-500">@{username}</ThemedText>
+        <ThemedText className="text-sm text-gray-500">
+          {formatDate(today)}
+        </ThemedText>
         <ThemedText className="text-sm font-medium text-[#6F13F5]">
           {role}
         </ThemedText>

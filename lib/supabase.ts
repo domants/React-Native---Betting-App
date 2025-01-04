@@ -439,7 +439,7 @@ export async function getCurrentUser() {
   }
 
   const { data: userData, error: userError } = await supabase
-    .from("Users")
+    .from("users")
     .select("*")
     .eq("id", user.id)
     .single();
@@ -453,27 +453,27 @@ export async function getCurrentUser() {
 
 // Add role check helper functions
 export function canCreateCoordinator(userRole: string) {
-  return userRole === "admin";
+  return userRole === "Admin";
 }
 
 export function canCreateSubCoordinator(userRole: string) {
-  return ["admin", "coordinator"].includes(userRole);
+  return ["Admin", "Coordinator"].includes(userRole);
 }
 
 export function canCreateUsher(userRole: string) {
-  return ["admin", "coordinator", "sub_coordinator"].includes(userRole);
+  return ["Admin", "Coordinator", "Sub-Coordinator"].includes(userRole);
 }
 
 export function canViewAllBets(userRole: string) {
-  return ["admin", "coordinator", "sub_coordinator"].includes(userRole);
+  return ["Admin", "Coordinator", "Sub-Coordinator"].includes(userRole);
 }
 
 export function canAddBets(userRole: string) {
-  return ["coordinator", "sub_coordinator", "usher"].includes(userRole);
+  return ["Coordinator", "Sub-Coordinator", "Usher"].includes(userRole);
 }
 
 export function canManageGameSettings(userRole: string) {
-  return userRole === "admin";
+  return userRole === "Admin";
 }
 
 // Add this new function
