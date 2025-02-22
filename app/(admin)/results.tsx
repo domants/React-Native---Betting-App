@@ -22,6 +22,8 @@ interface DrawResult {
   draw_time: string;
   l2_result: string;
   d3_result: string;
+  created_at: string;
+  created_by: string;
 }
 
 // Helper function to format date
@@ -112,11 +114,6 @@ export default function ResultsScreen() {
 
   const fetchResults = async () => {
     try {
-      console.log("Fetching results with filters:", {
-        date: filterMonth ? filterMonth.toISOString().split("T")[0] : "none",
-        time: filterTime,
-      });
-
       let query = supabase
         .from("draw_results")
         .select("*")
@@ -125,16 +122,14 @@ export default function ResultsScreen() {
 
       // Date filtering
       if (filterMonth) {
-        // Ensure we're using the correct date by handling timezone offset
         const date = new Date(filterMonth);
         date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
         const selectedDate = date.toISOString().split("T")[0];
-        console.log("Adjusted date for filtering:", selectedDate);
         query = query.eq("draw_date", selectedDate);
       }
 
       // Time filtering
-      if (filterTime && filterTime !== "All") {
+      if (filterTime) {
         const timeValue = timeSchedules.find(
           (t) => t.label === filterTime
         )?.value;
@@ -145,17 +140,11 @@ export default function ResultsScreen() {
 
       const { data, error } = await query;
 
-      if (error) {
-        console.error("Error fetching results:", error);
-        Alert.alert("Error", "Failed to fetch results");
-        return;
-      }
-
-      console.log("Fetched results:", data);
+      if (error) throw error;
       setResults(data || []);
     } catch (error) {
-      console.error("Error:", error);
-      Alert.alert("Error", "An unexpected error occurred");
+      console.error("Error fetching results:", error);
+      Alert.alert("Error", "Failed to fetch results");
     }
   };
 
@@ -190,12 +179,7 @@ export default function ResultsScreen() {
 
   const handleCloseModal = () => {
     setIsModalVisible(false);
-    setSelectedSchedule("");
-    setSelectedTime("");
-    setL2Result("");
-    setD3Result("");
-    setIsEditing(false);
-    setSelectedId(null);
+    resetForm();
   };
 
   const handleSaveResults = async () => {
@@ -232,13 +216,6 @@ export default function ResultsScreen() {
         throw checkError;
       }
 
-      console.log("Checking for duplicates:", {
-        existingDraws,
-        selectedId,
-        selectedSchedule,
-        selectedTime,
-      });
-
       // For updates, filter out the current record from the check
       const duplicateExists = isEditing
         ? existingDraws?.some(
@@ -264,67 +241,44 @@ export default function ResultsScreen() {
         draw_time: selectedTime,
         l2_result: l2Result.padStart(2, "0"),
         d3_result: d3Result.padStart(3, "0"),
+        created_by: user.id,
       };
-      console.log("Attempting to save result:", newResult);
 
-      let error;
+      let response;
       if (isEditing && selectedId) {
-        console.log("Updating existing record with ID:", selectedId);
-
-        // Try direct update with explicit fields
-        const { error: updateError } = await supabase
+        response = await supabase
           .from("draw_results")
-          .upsert(
-            {
-              id: selectedId,
-              ...newResult,
-            },
-            {
-              onConflict: "id",
-            }
-          );
-
-        error = updateError;
-        if (error) {
-          console.error("Update error:", error);
-          throw error;
-        }
+          .update(newResult)
+          .eq("id", selectedId)
+          .select()
+          .single();
       } else {
-        console.log("Inserting new record");
-        const { error: insertError } = await supabase
+        response = await supabase
           .from("draw_results")
-          .insert([newResult]);
-        error = insertError;
-        if (error) {
-          console.error("Insert error:", error);
-          throw error;
-        }
+          .insert(newResult)
+          .select()
+          .single();
       }
 
-      handleCloseModal();
-      await fetchResults();
+      if (response.error) throw response.error;
+
       Alert.alert(
         "Success",
-        `Results ${isEditing ? "updated" : "saved"} successfully`
+        `Draw result ${isEditing ? "updated" : "added"} successfully`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setIsModalVisible(false);
+              resetForm();
+              fetchResults();
+            },
+          },
+        ]
       );
-    } catch (error: any) {
-      console.error("Error saving results:", error);
-      // Check for unique constraint violation
-      if (error?.code === "23505") {
-        Alert.alert(
-          "Error",
-          `A draw result already exists for ${formatDate(
-            new Date(selectedSchedule)
-          )} at ${formatTimeTo12Hour(selectedTime)}.`
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          `Failed to ${isEditing ? "update" : "save"} results: ${
-            error.message || JSON.stringify(error)
-          }`
-        );
-      }
+    } catch (error) {
+      console.error("Error saving draw result:", error);
+      Alert.alert("Error", "Failed to save draw result");
     } finally {
       setIsLoading(false);
     }
@@ -458,6 +412,16 @@ export default function ResultsScreen() {
   // Remove the local filtering since we're doing it in the database
   const filteredResults = results;
 
+  // Add this near your other state management functions
+  const resetForm = () => {
+    setSelectedSchedule("");
+    setSelectedTime("");
+    setL2Result("");
+    setD3Result("");
+    setIsEditing(false);
+    setSelectedId(null);
+  };
+
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
       <ScrollView
@@ -570,18 +534,20 @@ export default function ResultsScreen() {
                       <ThemedText>L2: {result.l2_result}</ThemedText>
                       <ThemedText>3D: {result.d3_result}</ThemedText>
                     </StyledView>
-                    <StyledView className="flex-row items-center space-x-3">
-                      <TouchableOpacity
-                        onPress={() => handleEditResult(result.id)}
-                      >
-                        <MaterialIcons name="edit" size={24} color="blue" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleDeleteResult(result.id)}
-                      >
-                        <MaterialIcons name="delete" size={24} color="red" />
-                      </TouchableOpacity>
-                    </StyledView>
+                    {user?.role === "Admin" && (
+                      <StyledView className="flex-row items-center space-x-3">
+                        <TouchableOpacity
+                          onPress={() => handleEditResult(result.id)}
+                        >
+                          <MaterialIcons name="edit" size={24} color="blue" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteResult(result.id)}
+                        >
+                          <MaterialIcons name="delete" size={24} color="red" />
+                        </TouchableOpacity>
+                      </StyledView>
+                    )}
                   </StyledView>
                 ))
               )}
