@@ -6,6 +6,9 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
 import { router } from "expo-router";
 import Modal from "react-native-modal";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { Alert } from "react-native";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -17,17 +20,42 @@ interface UserAllocation {
   id: string;
   name: string;
   role: string;
-  l2Allocation: {
-    percentage: number;
-    amount: number;
-  };
-  d3Allocation: {
-    percentage: number;
-    amount: number;
+  percentage_l2: number;
+  percentage_l3: number;
+  winnings_l2: number;
+  winnings_l3: number;
+}
+
+interface UserData {
+  name: string;
+  role: string;
+}
+
+interface SubordinateResponse {
+  id: string;
+  user_id: string;
+  l2_percentage: number;
+  l2_amount: number;
+  d3_percentage: number;
+  d3_amount: number;
+  users: {
+    name: string;
+    role: string;
   };
 }
 
+interface SubordinateData {
+  id: string;
+  user_id: string;
+  l2_percentage: number;
+  l2_amount: number;
+  d3_percentage: number;
+  d3_amount: number;
+  users: UserData;
+}
+
 export default function AssignPercentageScreen() {
+  const queryClient = useQueryClient();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserAllocation | null>(null);
   const [l2Percentage, setL2Percentage] = useState("");
@@ -35,132 +63,236 @@ export default function AssignPercentageScreen() {
   const [d3Percentage, setD3Percentage] = useState("");
   const [d3Winnings, setD3Winnings] = useState("");
 
-  // Add state for current allocation
-  const [currentAllocation, setCurrentAllocation] = useState({
-    l2: {
-      percentage: 80,
-      remainingPercentage: 20,
-      winnings: 7000,
-      remainingWinnings: 3000,
-    },
-    d3: {
-      percentage: 55,
-      remainingPercentage: 45,
-      winnings: 10000,
-      remainingWinnings: 10000,
+  // Fetch current user's and subordinates' allocations
+  const { data: userData, isLoading: isUserLoading } = useQuery({
+    queryKey: ["userAllocations"],
+    queryFn: async () => {
+      // Get current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      // Get current user's data with their allocations
+      const { data: currentUserData, error: userError } = await supabase
+        .from("users")
+        .select("*, parent:parent_id(name)") // Also get parent info
+        .eq("id", user.id)
+        .single();
+
+      if (userError) throw userError;
+
+      // Get subordinates data - users where parent_id matches current user's id
+      const { data: subordinates, error: subError } = await supabase
+        .from("users")
+        .select(
+          `
+          id,
+          name,
+          role,
+          parent_id,
+          percentage_l2,
+          percentage_l3,
+          winnings_l2,
+          winnings_l3
+        `
+        )
+        .eq("parent_id", user.id) // This is the key change - filter by parent_id
+        .order("created_at", { ascending: false });
+
+      if (subError) throw subError;
+
+      return {
+        currentUser: currentUserData,
+        subordinates: subordinates.map((sub) => ({
+          id: sub.id,
+          name: sub.name,
+          role: sub.role,
+          percentage_l2: sub.percentage_l2,
+          percentage_l3: sub.percentage_l3,
+          winnings_l2: sub.winnings_l2,
+          winnings_l3: sub.winnings_l3,
+        })),
+      };
     },
   });
 
-  const users: UserAllocation[] = [
-    {
-      id: "1",
-      name: "John Doe",
-      role: "Sub-Coordinator",
-      l2Allocation: {
-        percentage: 50,
-        amount: 2000,
-      },
-      d3Allocation: {
-        percentage: 15,
-        amount: 3000,
-      },
+  // Update calculations to use new field names
+  const currentAllocation = {
+    l2: {
+      percentage:
+        userData?.subordinates.reduce(
+          (sum, user) => sum + (user.percentage_l2 || 0),
+          0
+        ) || 0,
+      remainingPercentage:
+        (userData?.currentUser.percentage_l2 || 0) -
+        (userData?.subordinates.reduce(
+          (sum, user) => sum + (user.percentage_l2 || 0),
+          0
+        ) || 0),
+      winnings:
+        userData?.subordinates.reduce(
+          (sum, user) => sum + (user.winnings_l2 || 0),
+          0
+        ) || 0,
+      remainingWinnings:
+        (userData?.currentUser.winnings_l2 || 0) -
+        (userData?.subordinates.reduce(
+          (sum, user) => sum + (user.winnings_l2 || 0),
+          0
+        ) || 0),
     },
-    {
-      id: "2",
-      name: "Jane Smith",
-      role: "Usher",
-      l2Allocation: {
-        percentage: 10,
-        amount: 1000,
-      },
-      d3Allocation: {
-        percentage: 10,
-        amount: 2000,
-      },
+    d3: {
+      percentage:
+        userData?.subordinates.reduce(
+          (sum, user) => sum + (user.percentage_l3 || 0),
+          0
+        ) || 0,
+      remainingPercentage:
+        (userData?.currentUser.percentage_l3 || 0) -
+        (userData?.subordinates.reduce(
+          (sum, user) => sum + (user.percentage_l3 || 0),
+          0
+        ) || 0),
+      winnings:
+        userData?.subordinates.reduce(
+          (sum, user) => sum + (user.winnings_l3 || 0),
+          0
+        ) || 0,
+      remainingWinnings:
+        (userData?.currentUser.winnings_l3 || 0) -
+        (userData?.subordinates.reduce(
+          (sum, user) => sum + (user.winnings_l3 || 0),
+          0
+        ) || 0),
     },
-  ];
-
-  // Add state for users list
-  const [usersList, setUsersList] = useState<UserAllocation[]>(users);
-
-  // Add function to calculate current allocation
-  const calculateCurrentAllocation = (updatedUsers: UserAllocation[]) => {
-    const totalL2Percentage = updatedUsers.reduce(
-      (sum, user) => sum + user.l2Allocation.percentage,
-      0
-    );
-    const totalL2Winnings = updatedUsers.reduce(
-      (sum, user) => sum + user.l2Allocation.amount,
-      0
-    );
-    const totalD3Percentage = updatedUsers.reduce(
-      (sum, user) => sum + user.d3Allocation.percentage,
-      0
-    );
-    const totalD3Winnings = updatedUsers.reduce(
-      (sum, user) => sum + user.d3Allocation.amount,
-      0
-    );
-
-    setCurrentAllocation({
-      l2: {
-        percentage: totalL2Percentage,
-        remainingPercentage: 100 - totalL2Percentage,
-        winnings: totalL2Winnings,
-        remainingWinnings: 10000 - totalL2Winnings, // Adjust max winnings as needed
-      },
-      d3: {
-        percentage: totalD3Percentage,
-        remainingPercentage: 100 - totalD3Percentage,
-        winnings: totalD3Winnings,
-        remainingWinnings: 15000 - totalD3Winnings, // Adjust max winnings as needed
-      },
-    });
   };
 
   const handleEdit = (user: UserAllocation) => {
     setSelectedUser(user);
-    setL2Percentage(user.l2Allocation.percentage.toString());
-    setL2Winnings(user.l2Allocation.amount.toString());
-    setD3Percentage(user.d3Allocation.percentage.toString());
-    setD3Winnings(user.d3Allocation.amount.toString());
+    setL2Percentage(user.percentage_l2.toString());
+    setL2Winnings(user.winnings_l2.toString());
+    setD3Percentage(user.percentage_l3.toString());
+    setD3Winnings(user.winnings_l3.toString());
     setIsModalVisible(true);
   };
 
-  const handleSaveAllocation = () => {
-    if (!selectedUser) return;
+  // Add validation helper function
+  const validateAllocations = (
+    newL2Percentage: number,
+    newL2Winnings: number,
+    newD3Percentage: number,
+    newD3Winnings: number
+  ) => {
+    if (!userData?.currentUser)
+      return { isValid: false, message: "No user data available" };
 
-    const updatedUsers = usersList.map((user) => {
-      if (user.id === selectedUser.id) {
-        return {
-          ...user,
-          l2Allocation: {
-            percentage: Number(l2Percentage) || user.l2Allocation.percentage,
-            amount: Number(l2Winnings) || user.l2Allocation.amount,
-          },
-          d3Allocation: {
-            percentage: Number(d3Percentage) || user.d3Allocation.percentage,
-            amount: Number(d3Winnings) || user.d3Allocation.amount,
-          },
-        };
-      }
-      return user;
-    });
+    // Calculate available amounts (current user's allocation minus all other subordinates except selected user)
+    const otherSubordinates = userData.subordinates.filter(
+      (sub) => sub.id !== selectedUser?.id
+    );
 
-    setUsersList(updatedUsers);
-    calculateCurrentAllocation(updatedUsers);
+    const availableL2Percentage =
+      userData.currentUser.percentage_l2 -
+      otherSubordinates.reduce((sum, sub) => sum + (sub.percentage_l2 || 0), 0);
+    const availableL2Winnings =
+      userData.currentUser.winnings_l2 -
+      otherSubordinates.reduce((sum, sub) => sum + (sub.winnings_l2 || 0), 0);
+    const availableD3Percentage =
+      userData.currentUser.percentage_l3 -
+      otherSubordinates.reduce((sum, sub) => sum + (sub.percentage_l3 || 0), 0);
+    const availableD3Winnings =
+      userData.currentUser.winnings_l3 -
+      otherSubordinates.reduce((sum, sub) => sum + (sub.winnings_l3 || 0), 0);
 
-    setIsModalVisible(false);
-    setL2Percentage("");
-    setL2Winnings("");
-    setD3Percentage("");
-    setD3Winnings("");
+    if (newL2Percentage > availableL2Percentage) {
+      return {
+        isValid: false,
+        message: `L2 percentage cannot exceed  the remaining ${availableL2Percentage}% allocation`,
+      };
+    }
+
+    if (newL2Winnings > availableL2Winnings) {
+      return {
+        isValid: false,
+        message: `L2 winnings cannot exceed the remaining ₱${availableL2Winnings} allocation`,
+      };
+    }
+
+    if (newD3Percentage > availableD3Percentage) {
+      return {
+        isValid: false,
+        message: `3D percentage cannot exceed the remaining ${availableD3Percentage}% allocation`,
+      };
+    }
+
+    if (newD3Winnings > availableD3Winnings) {
+      return {
+        isValid: false,
+        message: `3D winnings cannot exceed the remaining ₱${availableD3Winnings} allocation`,
+      };
+    }
+
+    return { isValid: true, message: "" };
   };
 
-  // Initialize current allocation on component mount
-  useEffect(() => {
-    calculateCurrentAllocation(usersList);
-  }, []);
+  // Update the mutation
+  const updateAllocationMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedUser) throw new Error("No user selected");
+
+      // Validate the new allocations
+      const validation = validateAllocations(
+        Number(l2Percentage),
+        Number(l2Winnings),
+        Number(d3Percentage),
+        Number(d3Winnings)
+      );
+
+      if (!validation.isValid) {
+        throw new Error(validation.message);
+      }
+
+      const { error } = await supabase
+        .from("users")
+        .update({
+          percentage_l2: Number(l2Percentage),
+          winnings_l2: Number(l2Winnings),
+          percentage_l3: Number(d3Percentage),
+          winnings_l3: Number(d3Winnings),
+        })
+        .eq("id", selectedUser.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userAllocations"] });
+      setIsModalVisible(false);
+      setL2Percentage("");
+      setL2Winnings("");
+      setD3Percentage("");
+      setD3Winnings("");
+      Alert.alert("Success", "Allocation updated successfully");
+    },
+    onError: (error: Error) => {
+      console.error("Error updating allocation:", error);
+      Alert.alert("Error", error.message || "Failed to update allocation");
+    },
+  });
+
+  const handleSaveAllocation = () => {
+    if (!selectedUser) return;
+    updateAllocationMutation.mutate();
+  };
+
+  if (isUserLoading) {
+    return (
+      <StyledSafeAreaView className="flex-1 bg-[#FDFDFD] justify-center items-center">
+        <ThemedText>Loading...</ThemedText>
+      </StyledSafeAreaView>
+    );
+  }
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
@@ -193,7 +325,13 @@ export default function AssignPercentageScreen() {
             <StyledView className="h-2 bg-gray-200 rounded-full mb-3">
               <StyledView
                 className="h-2 bg-blue-600 rounded-full"
-                style={{ width: `${currentAllocation.l2.percentage}%` }}
+                style={{
+                  width: `${
+                    (currentAllocation.l2.percentage /
+                      userData?.currentUser.percentage_l2) *
+                    100
+                  }%`,
+                }}
               />
             </StyledView>
             <StyledView className="flex-row justify-between">
@@ -208,8 +346,7 @@ export default function AssignPercentageScreen() {
                 style={{
                   width: `${
                     (currentAllocation.l2.winnings /
-                      (currentAllocation.l2.winnings +
-                        currentAllocation.l2.remainingWinnings)) *
+                      userData?.currentUser.winnings_l2) *
                     100
                   }%`,
                 }}
@@ -229,7 +366,13 @@ export default function AssignPercentageScreen() {
             <StyledView className="h-2 bg-gray-200 rounded-full mb-3">
               <StyledView
                 className="h-2 bg-blue-600 rounded-full"
-                style={{ width: `${currentAllocation.d3.percentage}%` }}
+                style={{
+                  width: `${
+                    (currentAllocation.d3.percentage /
+                      userData?.currentUser.percentage_l3) *
+                    100
+                  }%`,
+                }}
               />
             </StyledView>
             <StyledView className="flex-row justify-between">
@@ -244,8 +387,7 @@ export default function AssignPercentageScreen() {
                 style={{
                   width: `${
                     (currentAllocation.d3.winnings /
-                      (currentAllocation.d3.winnings +
-                        currentAllocation.d3.remainingWinnings)) *
+                      userData?.currentUser.winnings_l3) *
                     100
                   }%`,
                 }}
@@ -260,7 +402,7 @@ export default function AssignPercentageScreen() {
             User Allocations
           </ThemedText>
 
-          {usersList.map((user) => (
+          {userData?.subordinates.map((user) => (
             <StyledView
               key={user.id}
               className="border-b border-gray-100 py-4 last:border-b-0"
@@ -284,8 +426,7 @@ export default function AssignPercentageScreen() {
                     L2 Allocation
                   </ThemedText>
                   <ThemedText>
-                    {user.l2Allocation.percentage}% | ₱
-                    {user.l2Allocation.amount}
+                    {user.percentage_l2}% | ₱{user.winnings_l2}
                   </ThemedText>
                 </StyledView>
                 <StyledView className="flex-1">
@@ -293,8 +434,7 @@ export default function AssignPercentageScreen() {
                     3D Allocation
                   </ThemedText>
                   <ThemedText>
-                    {user.d3Allocation.percentage}% | ₱
-                    {user.d3Allocation.amount}
+                    {user.percentage_l3}% | ₱{user.winnings_l3}
                   </ThemedText>
                 </StyledView>
               </StyledView>
@@ -336,6 +476,9 @@ export default function AssignPercentageScreen() {
                 keyboardType="numeric"
                 maxLength={3}
               />
+              <ThemedText className="text-sm text-gray-500 mt-1">
+                Available: {currentAllocation.l2.remainingPercentage}%
+              </ThemedText>
             </StyledView>
 
             {/* L2 Winnings */}
@@ -379,9 +522,12 @@ export default function AssignPercentageScreen() {
             <TouchableOpacity
               className="bg-black py-3 rounded-lg mt-4"
               onPress={handleSaveAllocation}
+              disabled={updateAllocationMutation.isPending}
             >
               <ThemedText className="text-white text-center font-semibold">
-                Save Allocation
+                {updateAllocationMutation.isPending
+                  ? "Saving..."
+                  : "Save Allocation"}
               </ThemedText>
             </TouchableOpacity>
           </StyledView>
