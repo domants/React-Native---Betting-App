@@ -20,13 +20,26 @@ export default function RootLayout() {
     supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event);
 
-      if (!session) {
-        console.log("No session, redirecting to login");
+      // Only handle sign out and initial session check
+      if (event === "SIGNED_OUT") {
+        console.log("User signed out, redirecting to login");
         router.replace("/(auth)/login");
         return;
       }
 
+      // Skip other auth events if we already have a session
+      if (event !== "INITIAL_SESSION" && session) {
+        console.log("Skipping auth redirect for event:", event);
+        return;
+      }
+
       try {
+        if (!session) {
+          console.log("No session, redirecting to login");
+          router.replace("/(auth)/login");
+          return;
+        }
+
         // Get user details including role
         const { data: userDetails, error } = await supabase
           .from("users")
@@ -35,7 +48,7 @@ export default function RootLayout() {
           .single();
 
         if (error || !userDetails) {
-          console.log("Error getting user details:", error);
+          console.error("Error getting user details:", error);
           await supabase.auth.signOut();
           router.replace("/(auth)/login");
           return;
@@ -50,7 +63,7 @@ export default function RootLayout() {
           if (userDetails.role.toLowerCase() === "admin") {
             router.replace("/(admin)/dashboard");
           } else {
-            router.replace("/(tabs)/dashboard"); // Update this path to match your folder structure
+            router.replace("/(tabs)/dashboard");
           }
         }
       } catch (error) {

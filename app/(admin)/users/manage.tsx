@@ -14,6 +14,7 @@ import Modal from "react-native-modal";
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 
+// Manage Users Screen
 export default function ManageUsersScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,6 +29,7 @@ export default function ManageUsersScreen() {
     fetchUsers();
   }, []);
 
+  // Fetch users
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
@@ -52,12 +54,15 @@ export default function ManageUsersScreen() {
     }
   };
 
+  // Filter out admin users
   const filteredUsers = users.filter(
     (user) =>
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      user.role?.toLowerCase() !== "admin" &&
+      (user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.name?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  // Handle delete user
   const handleDeleteUser = async (userId: string, userEmail: string) => {
     Alert.alert(
       "Confirm Delete",
@@ -129,6 +134,7 @@ export default function ManageUsersScreen() {
     ]);
   };
 
+  // Handle save edit
   const handleSaveEdit = async () => {
     if (!selectedUser || !editType || !editValue) return;
 
@@ -148,11 +154,13 @@ export default function ManageUsersScreen() {
     }
   };
 
+  // Handle create user
   const handleCreateUser = () => {
     console.log("Navigating to register screen from manage users");
     router.push("/(auth)/register");
   };
 
+  // Log when the screen is mounted
   React.useEffect(() => {
     console.log("ManageUsersScreen mounted, fetching users");
   }, []);
@@ -171,7 +179,7 @@ export default function ManageUsersScreen() {
       <StyledView className="px-4 py-3 border-b border-gray-200 bg-white">
         <StyledView className="flex-row items-center justify-between mb-4">
           <TouchableOpacity
-            onPress={() => router.replace("/(admin)/dashboard")}
+            onPress={() => router.back()}
             className="flex-row items-center"
           >
             <MaterialIcons name="arrow-back" size={24} color="#6F13F5" />

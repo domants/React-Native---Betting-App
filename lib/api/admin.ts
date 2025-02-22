@@ -139,28 +139,19 @@ export async function updateUserPercentage(
 }
 
 export async function getSubordinates() {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session?.session) {
+    throw new Error("Not authenticated");
+  }
+
   const { data, error } = await supabase
     .from("users")
     .select(
-      `
-      id,
-      name,
-      role,
-      percentage_l2,
-      percentage_l3,
-      winnings_l2,
-      winnings_l3
-    `
+      "id, name, role, percentage_l2, percentage_l3, winnings_l2, winnings_l3"
     )
-    .in("role", ["Coordinator", "Sub-Coordinator", "Usher"])
-    .order("role", { ascending: true });
+    .not("role", "eq", "Admin");
 
-  if (error) {
-    console.error("Error fetching subordinates:", error);
-    throw error;
-  }
-
-  console.log("Fetched subordinates:", data);
+  if (error) throw error;
   return data;
 }
 
@@ -173,78 +164,18 @@ export async function updateUserAllocation(
     winnings_l3?: number;
   }
 ) {
-  try {
-    // First check if current user is authenticated
-    const { data: currentUser, error: userError } =
-      await supabase.auth.getUser();
-    if (!currentUser?.user) {
-      throw new Error("Not authenticated");
-    }
-
-    console.log("Auth user ID:", currentUser.user.id);
-    console.log("Auth user email:", currentUser.user.email);
-
-    // Get current user's role for debugging - using maybeSingle() instead of single()
-    const { data: userData, error: roleError } = await supabase
-      .from("users")
-      .select("id, email, role")
-      .eq("email", currentUser.user.email)
-      .maybeSingle();
-
-    if (roleError) {
-      console.error("Role fetch error:", roleError);
-      throw new Error("Failed to fetch user role");
-    }
-
-    if (!userData) {
-      console.error("User not found in database");
-      throw new Error("User profile not found in database");
-    }
-
-    console.log("Found user data:", userData);
-
-    // Check if user is admin using direct role check - using uppercase 'Admin'
-    if (userData.role !== "Admin") {
-      console.error("User is not admin. Current role:", userData.role);
-      throw new Error("Only admins can update user allocations");
-    }
-
-    // Verify target user exists and get current values
-    const { data: targetUser, error: targetError } = await supabase
-      .from("users")
-      .select("id, role, percentage_l2, percentage_l3")
-      .eq("id", userId)
-      .single();
-
-    if (targetError) {
-      console.error("Target user check error:", targetError);
-      throw new Error(`Failed to find target user: ${targetError.message}`);
-    }
-
-    if (!targetUser) {
-      throw new Error(`Target user not found with ID: ${userId}`);
-    }
-
-    console.log("Target user found:", targetUser);
-    console.log("Applying updates:", updates);
-
-    // Proceed with the update
-    const { data: updated, error: updateError } = await supabase
-      .from("users")
-      .update(updates)
-      .eq("id", userId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error("Update error:", updateError);
-      throw new Error("Failed to update user allocation");
-    }
-
-    console.log("Update successful:", updated);
-    return updated;
-  } catch (error) {
-    console.error("Update allocation error:", error);
-    throw error;
+  const { data: session } = await supabase.auth.getSession();
+  if (!session?.session) {
+    throw new Error("Not authenticated");
   }
+
+  const { data, error } = await supabase
+    .from("users")
+    .update(updates)
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }

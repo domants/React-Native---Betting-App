@@ -6,6 +6,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Modal from "react-native-modal";
+import { useRouter } from "expo-router";
+import { supabase } from "@/lib/supabase";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -24,6 +26,7 @@ export default function PercentageScreen() {
   const [l2Winnings, setL2Winnings] = useState("");
   const [d3Percentage, setD3Percentage] = useState("");
   const [d3Winnings, setD3Winnings] = useState("");
+  const router = useRouter();
 
   // Fetch subordinates
   const { data: subordinates = [], isLoading } = useQuery({
@@ -55,6 +58,11 @@ export default function PercentageScreen() {
         winnings_l3?: number;
       };
     }) => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        throw new Error("Not authenticated");
+      }
+
       const result = await updateUserAllocation(params.userId, params.updates);
       return result;
     },
@@ -66,7 +74,20 @@ export default function PercentageScreen() {
     },
     onError: (error: Error) => {
       console.error("Mutation error:", error);
-      Alert.alert("Error", error.message);
+      if (error.message === "Not authenticated") {
+        // Handle auth error
+        Alert.alert("Session Expired", "Please log in again", [
+          {
+            text: "OK",
+            onPress: async () => {
+              await supabase.auth.signOut();
+              router.replace("/(auth)/login");
+            },
+          },
+        ]);
+      } else {
+        Alert.alert("Error", error.message);
+      }
     },
   });
 
