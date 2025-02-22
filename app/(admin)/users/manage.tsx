@@ -169,9 +169,18 @@ export default function ManageUsersScreen() {
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
       {/* Header */}
       <StyledView className="px-4 py-3 border-b border-gray-200 bg-white">
-        <ThemedText className="text-2xl font-bold mb-4">
-          User Management
-        </ThemedText>
+        <StyledView className="flex-row items-center justify-between mb-4">
+          <TouchableOpacity
+            onPress={() => router.replace("/(admin)/dashboard")}
+            className="flex-row items-center"
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#6F13F5" />
+            <ThemedText className="ml-2 text-[#6F13F5]">Dashboard</ThemedText>
+          </TouchableOpacity>
+          <ThemedText className="text-2xl font-bold">
+            User Management
+          </ThemedText>
+        </StyledView>
 
         {/* Search and Create User Row */}
         <StyledView className="flex-row items-center space-x-3">

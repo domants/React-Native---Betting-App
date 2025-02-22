@@ -19,11 +19,10 @@ export default function RootLayout() {
   useEffect(() => {
     supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event);
-      console.log("Current segments:", segments);
 
-      if (event === "SIGNED_OUT" || !session) {
+      if (!session) {
         console.log("No session, redirecting to login");
-        router.replace("/login" as const);
+        router.replace("/(auth)/login");
         return;
       }
 
@@ -38,36 +37,25 @@ export default function RootLayout() {
         if (error || !userDetails) {
           console.log("Error getting user details:", error);
           await supabase.auth.signOut();
-          router.replace("/login" as const);
+          router.replace("/(auth)/login");
           return;
         }
 
         console.log("User role:", userDetails.role);
         console.log("Current segment:", segments[0]);
 
-        // Define dashboard paths for each role
-        const dashboardPaths: Record<User["role"], string> = {
-          Admin: "/(admin)/dashboard",
-          Coordinator: "/(coordinator)/dashboard",
-          "Sub-Coordinator": "/(sub-coordinator)/dashboard",
-          Usher: "/(usher)/dashboard",
-        };
-
         // Only redirect if we're in the auth route or at the root
         const currentSegment = segments[0];
         if (currentSegment === "(auth)" || !currentSegment) {
-          const path = dashboardPaths[userDetails.role as User["role"]];
-          if (path) {
-            console.log("Routing to dashboard:", path);
-            router.replace(path as any);
+          if (userDetails.role.toLowerCase() === "admin") {
+            router.replace("/(admin)/dashboard");
           } else {
-            console.log("Unknown role:", userDetails.role);
-            router.replace("/login" as const);
+            router.replace("/(tabs)/dashboard"); // Update this path to match your folder structure
           }
         }
       } catch (error) {
         console.error("Error in auth routing:", error);
-        router.replace("/login" as const);
+        router.replace("/(auth)/login");
       }
     });
   }, []);

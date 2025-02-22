@@ -23,35 +23,21 @@ export default function LoginScreen() {
 
     try {
       setIsLoading(true);
-      console.log("Attempting login with:", emailOrUsername);
 
-      // First check if user exists in public.users
-      const { data: publicUser, error: publicError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("email", emailOrUsername.toLowerCase())
-        .single();
-
-      console.log("Public user check:", { publicUser, publicError });
-
-      // Try auth login
+      // Single auth call with user data
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailOrUsername.toLowerCase(),
         password,
       });
 
-      console.log("Auth response:", { data, error });
-
       if (error) throw error;
 
-      // Get user details including role
+      // Get user details in a single query
       const { data: userDetails, error: userError } = await supabase
         .from("users")
-        .select("role")
+        .select("*") // Get all user data at once
         .eq("id", data.user.id)
         .single();
-
-      console.log("User details:", { userDetails, userError });
 
       if (userError) throw userError;
 
@@ -63,13 +49,14 @@ export default function LoginScreen() {
         case "coordinator":
         case "sub-coordinator":
         case "usher":
-          router.replace("/(admin)/users/manage");
+          router.replace("/(tabs)/dashboard");
           break;
         default:
-          router.replace("/(admin)/dashboard");
+          console.error("Unknown role:", userDetails.role);
+          Alert.alert("Error", "Invalid user role");
       }
     } catch (error: any) {
-      console.error("Detailed login error:", error);
+      console.error("Login error:", error);
       Alert.alert("Error", "Invalid email or password");
     } finally {
       setIsLoading(false);

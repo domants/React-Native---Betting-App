@@ -37,6 +37,7 @@ export default function NewBetScreen() {
     { id: 1, combination: "", isRambol: false, amount: "" },
   ]);
   const [totalAmount, setTotalAmount] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     router.setParams({ totalBetValue: totalAmount.toString() });
@@ -107,14 +108,13 @@ export default function NewBetScreen() {
     });
   };
 
-  const handleBack = () => {
-    // Only show success alert if there are bet details
+  const handleSubmitBet = () => {
+    setIsSubmitting(true);
     if (betRows.some((row) => row.combination && row.amount)) {
       Alert.alert("Success", "Bet successfully saved to card", [
         {
           text: "OK",
           onPress: () => {
-            // Format and navigate back after alert is dismissed
             const formattedBetRows = betRows.map((row) => ({
               combination: row.combination,
               amount: Number(row.amount),
@@ -129,10 +129,14 @@ export default function NewBetScreen() {
           },
         },
       ]);
-      return;
+    } else {
+      Alert.alert("Error", "Please add at least one bet");
+      setIsSubmitting(false);
     }
+  };
 
-    // If no bets, just navigate back without alert
+  const handleBack = () => {
+    // Only update params and go back without alert
     const formattedBetRows = betRows.map((row) => ({
       combination: row.combination,
       amount: Number(row.amount),
@@ -256,9 +260,12 @@ export default function NewBetScreen() {
 
           <TouchableOpacity
             className="w-full py-4 bg-[#6F13F5] rounded-xl items-center"
-            onPress={handleBack}
+            onPress={handleSubmitBet}
+            disabled={isSubmitting}
           >
-            <ThemedText className="text-white font-bold">Submit Bet</ThemedText>
+            <ThemedText className="text-white font-bold">
+              {isSubmitting ? "Submitting..." : "Submit Bet"}
+            </ThemedText>
           </TouchableOpacity>
         </StyledView>
       </StyledSafeAreaView>

@@ -1,8 +1,9 @@
-import { View, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { supabase } from "@/lib/supabase";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -71,6 +72,21 @@ export default function ManagementScreen() {
     },
   ];
 
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      Alert.alert("Success", "You have been logged out successfully", [
+        {
+          text: "OK",
+          onPress: () => router.replace("/(auth)/login"),
+        },
+      ]);
+    } catch (error) {
+      console.error("Error signing out:", error);
+      Alert.alert("Error", "Failed to sign out. Please try again.");
+    }
+  };
+
   if (isUserLoading || !user) {
     return null;
   }
@@ -83,9 +99,17 @@ export default function ManagementScreen() {
           <ThemedText className="text-2xl font-bold text-[#6F13F5]">
             Welcome {user.username}!
           </ThemedText>
-          <StyledView className="flex-row items-center">
-            <StyledView className="w-2 h-2 rounded-full bg-green-500 mr-1.5" />
-            <ThemedText className="text-sm text-green-500">Online</ThemedText>
+          <StyledView className="flex-row items-center space-x-4">
+            <StyledView className="flex-row items-center">
+              <StyledView className="w-2 h-2 rounded-full bg-green-500 mr-1.5" />
+              <ThemedText className="text-sm text-green-500">Online</ThemedText>
+            </StyledView>
+            <TouchableOpacity
+              onPress={handleSignOut}
+              className="flex-row items-center"
+            >
+              <MaterialIcons name="logout" size={24} color="#6F13F5" />
+            </TouchableOpacity>
           </StyledView>
         </StyledView>
         <ThemedText className="text-sm text-gray-500">{user.role}</ThemedText>

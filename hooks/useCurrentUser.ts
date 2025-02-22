@@ -9,63 +9,11 @@ export function useCurrentUser() {
   useEffect(() => {
     let isMounted = true;
 
-    async function fetchUser() {
+    // Single function to update user data
+    const updateUserData = async (session: any) => {
       try {
-        console.log("Fetching current user session...");
-        const { data: authData } = await supabase.auth.getSession();
+        if (!session?.user?.email || !isMounted) return;
 
-        if (!isMounted) return;
-
-        if (authData.session?.user) {
-          console.log(
-            "Found auth session, fetching user details:",
-            authData.session.user.email
-          );
-          const { data: userData, error } = await supabase
-            .from("users")
-            .select("*")
-            .eq("email", authData.session.user.email)
-            .single();
-
-          if (error) {
-            console.error("Error fetching user data:", error);
-            return;
-          }
-
-          console.log("Setting user data:", {
-            id: userData.id,
-            email: userData.email,
-            role: userData.role,
-          });
-
-          if (isMounted) {
-            setUser({
-              ...userData,
-              username: userData.name,
-              role: userData.role,
-            });
-          }
-        } else {
-          console.log("No auth session found");
-        }
-      } catch (error) {
-        console.error("Error in fetchUser:", error);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    fetchUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email);
-
-      if (event === "SIGNED_IN" && session) {
-        console.log("User signed in, fetching details");
         const { data: userData, error } = await supabase
           .from("users")
           .select("*")
@@ -73,21 +21,33 @@ export function useCurrentUser() {
           .single();
 
         if (!error && userData && isMounted) {
-          console.log("Setting user data after sign in:", {
-            id: userData.id,
-            role: userData.role,
-          });
           setUser({
             ...userData,
             username: userData.name,
             role: userData.role,
           });
         }
-      } else if (event === "SIGNED_OUT") {
-        console.log("User signed out, clearing user data");
-        if (isMounted) {
-          setUser(null);
-        }
+      } catch (error) {
+        console.error("Error updating user data:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      updateUserData(session);
+    });
+
+    // Auth state change listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN") {
+        await updateUserData(session);
+      } else if (event === "SIGNED_OUT" && isMounted) {
+        setUser(null);
+        setIsLoading(false);
       }
     });
 
