@@ -13,20 +13,16 @@ import NetInfo from "@react-native-community/netinfo";
 };
 
 // environment variables
-export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables");
-}
+const supabaseUrl = "https://hqwxmqqsmofpevnzycrx.supabase.co";
+const supabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxd3htcXFzbW9mcGV2bnp5Y3J4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzgwMzA2MTUsImV4cCI6MjA1MzYwNjYxNX0.5kbCIKW_ExL-qXyMNQIIj8aYOMq_GZ7-YV5qbp89EeM";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
-    flowType: "pkce",
+    detectSessionInUrl: false,
   },
 });
 
@@ -59,17 +55,11 @@ supabase.auth.onAuthStateChange((event, session) => {
 export interface User {
   id: string;
   email: string;
-  username: string;
-  display_name?: string;
-  role: "admin" | "coordinator" | "sub_coordinator" | "usher";
-  balance: number;
-  percentage_l2: number;
-  percentage_l3: number;
-  winnings_l2: number;
-  winnings_l3: number;
-  parent_id?: string;
+  name?: string;
+  role: string;
+  deleted_at?: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface UserBet {

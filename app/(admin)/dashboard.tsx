@@ -26,6 +26,7 @@ interface AdminOption {
     | "/(admin)/limits"
     | "/(admin)/audit"
     | "/(admin)/users"
+    | "/(admin)/users/manage"
     | null;
 }
 
@@ -34,7 +35,7 @@ const adminOptions: AdminOption[] = [
     title: "User Management",
     description: "Create and manage user accounts",
     icon: "people",
-    route: "/(auth)/register",
+    route: "/(admin)/users/manage",
   },
   {
     title: "Percentage Management",

@@ -10,11 +10,17 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen
+        name="login"
+        options={{
+          title: "Login",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="register"
         options={{
+          title: "Register",
           headerShown: false,
-          headerTitle: "",
-          animation: "slide_from_right",
         }}
       />
       {/* other screens */}

@@ -59,6 +59,20 @@ export default function AdminLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="users/manage"
+        options={{
+          title: "User Management",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="users/edit/[id]"
+        options={{
+          title: "Edit User",
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

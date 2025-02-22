@@ -3,7 +3,6 @@ import { View, TextInput, TouchableOpacity, Alert } from "react-native";
 import { styled } from "nativewind";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
-import { signIn } from "@/lib/api/auth";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 
@@ -24,117 +23,84 @@ export default function LoginScreen() {
 
     try {
       setIsLoading(true);
+      console.log("Attempting login with:", emailOrUsername);
 
-      // First try to sign in
-      const { data: signInData, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email: emailOrUsername.toLowerCase(),
-          password,
-        });
-
-      if (signInError) {
-        console.error("Sign in error:", signInError);
-        Alert.alert("Error", "Invalid email or password");
-        return;
-      }
-
-      if (!signInData.user) {
-        Alert.alert("Error", "Failed to authenticate user");
-        return;
-      }
-
-      // Now check if user exists in users table
-      let { data: userData, error: userError } = await supabase
+      // First check if user exists in public.users
+      const { data: publicUser, error: publicError } = await supabase
         .from("users")
-        .select("id, role, email")
+        .select("*")
         .eq("email", emailOrUsername.toLowerCase())
         .single();
 
-      if (userError && userError.code !== "PGRST116") {
-        console.error("Error checking existing user:", userError);
-        Alert.alert("Error", "Failed to verify user account");
-        return;
+      console.log("Public user check:", { publicUser, publicError });
+
+      // Try auth login
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailOrUsername.toLowerCase(),
+        password,
+      });
+
+      console.log("Auth response:", { data, error });
+
+      if (error) throw error;
+
+      // Get user details including role
+      const { data: userDetails, error: userError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+
+      console.log("User details:", { userDetails, userError });
+
+      if (userError) throw userError;
+
+      // Route based on role
+      switch (userDetails.role.toLowerCase()) {
+        case "admin":
+          router.replace("/(admin)/dashboard");
+          break;
+        case "coordinator":
+        case "sub-coordinator":
+        case "usher":
+          router.replace("/(admin)/users/manage");
+          break;
+        default:
+          router.replace("/(admin)/dashboard");
       }
-
-      // Create user record if it doesn't exist
-      if (!userData) {
-        const newUserData = {
-          id: signInData.user.id,
-          email: emailOrUsername.toLowerCase(),
-          role: "Admin", // Since this is your admin account
-          username: emailOrUsername.toLowerCase().split("@")[0],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        const { error: insertError } = await supabase
-          .from("users")
-          .upsert([newUserData], {
-            onConflict: "email",
-            ignoreDuplicates: false,
-          });
-
-        if (insertError) {
-          console.error("Error creating user record:", insertError);
-          Alert.alert("Error", "Failed to create user account");
-          return;
-        }
-
-        // Fetch the newly created user
-        const { data: newUser, error: fetchError } = await supabase
-          .from("users")
-          .select("id, role, email")
-          .eq("email", emailOrUsername.toLowerCase())
-          .single();
-
-        if (fetchError || !newUser) {
-          console.error("Error fetching new user:", fetchError);
-          Alert.alert("Error", "Failed to verify new user account");
-          return;
-        }
-
-        userData = newUser;
-      }
-
-      // At this point userData must exist
-      if (!userData) {
-        Alert.alert("Error", "Failed to verify user account");
-        return;
-      }
-
-      // Check if IDs match
-      if (signInData.user.id !== userData.id) {
-        // The IDs don't match, we need to update the auth user's ID
-        console.log("Updating auth user ID to match users table...");
-        console.log("Old ID:", signInData.user.id);
-        console.log("New ID:", userData.id);
-
-        const { error: updateError } = await supabase.rpc(
-          "update_auth_user_id",
-          {
-            old_id: signInData.user.id,
-            new_id: userData.id,
-          }
-        );
-
-        if (updateError) {
-          console.error("Error updating user ID:", updateError);
-          Alert.alert("Error", "Failed to update user account");
-          return;
-        }
-      }
-
-      // Redirect based on role
-      if (userData.role === "Admin") {
-        router.replace("/(admin)/dashboard" as any);
-      } else {
-        router.replace("/(user)/dashboard" as any);
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      Alert.alert("Error", "An unexpected error occurred");
+    } catch (error: any) {
+      console.error("Detailed login error:", error);
+      Alert.alert("Error", "Invalid email or password");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!emailOrUsername) {
+      Alert.alert("Error", "Please enter your email address");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        emailOrUsername,
+        {
+          //redirectTo: "yourapp://reset-password",
+        }
+      );
+
+      if (error) throw error;
+      Alert.alert(
+        "Password Reset",
+        "If an account exists with this email, you will receive password reset instructions."
+      );
+    } catch (error) {
+      console.error("Password reset error:", error);
+      Alert.alert(
+        "Error",
+        "Failed to send password reset email. THis is on going functionality"
+      );
     }
   };
 
@@ -173,6 +139,18 @@ export default function LoginScreen() {
           >
             <ThemedText className="text-white text-center font-semibold">
               {isLoading ? "Logging in..." : "Login"}
+            </ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity className="mt-2" onPress={handleForgotPassword}>
+            <ThemedText className="text-center text-gray-600">
+              Forgot Password?
+            </ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+            <ThemedText className="text-center text-gray-600 mt-4">
+              Don't have an account? Register
             </ThemedText>
           </TouchableOpacity>
         </StyledView>

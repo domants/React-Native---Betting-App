@@ -32,7 +32,8 @@
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
-      ]
+      ],
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro",
