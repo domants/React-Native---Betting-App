@@ -148,6 +148,15 @@ export default function ManageUsersScreen() {
     }
   };
 
+  const handleCreateUser = () => {
+    console.log("Navigating to register screen from manage users");
+    router.push("/(auth)/register");
+  };
+
+  React.useEffect(() => {
+    console.log("ManageUsersScreen mounted, fetching users");
+  }, []);
+
   if (isLoading) {
     return (
       <StyledSafeAreaView className="flex-1 bg-[#FDFDFD] justify-center items-center">
@@ -176,7 +185,7 @@ export default function ManageUsersScreen() {
             />
           </StyledView>
           <TouchableOpacity
-            onPress={() => router.push("/(auth)/register")}
+            onPress={handleCreateUser}
             className="bg-[#6F13F5] px-4 py-2.5 rounded-xl flex-row items-center"
           >
             <MaterialIcons name="add" size={20} color="white" />

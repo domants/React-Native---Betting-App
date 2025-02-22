@@ -7,10 +7,20 @@ export function useCurrentUser() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function fetchUser() {
       try {
+        console.log("Fetching current user session...");
         const { data: authData } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
+
         if (authData.session?.user) {
+          console.log(
+            "Found auth session, fetching user details:",
+            authData.session.user.email
+          );
           const { data: userData, error } = await supabase
             .from("users")
             .select("*")
@@ -22,31 +32,51 @@ export function useCurrentUser() {
             return;
           }
 
-          setUser({
-            ...userData,
-            username: userData.name,
+          console.log("Setting user data:", {
+            id: userData.id,
+            email: userData.email,
             role: userData.role,
           });
+
+          if (isMounted) {
+            setUser({
+              ...userData,
+              username: userData.name,
+              role: userData.role,
+            });
+          }
+        } else {
+          console.log("No auth session found");
         }
       } catch (error) {
-        console.error("Error fetching user:", error);
+        console.error("Error in fetchUser:", error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
+
     fetchUser();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, session?.user?.email);
+
       if (event === "SIGNED_IN" && session) {
+        console.log("User signed in, fetching details");
         const { data: userData, error } = await supabase
           .from("users")
           .select("*")
           .eq("email", session.user.email)
           .single();
 
-        if (!error && userData) {
+        if (!error && userData && isMounted) {
+          console.log("Setting user data after sign in:", {
+            id: userData.id,
+            role: userData.role,
+          });
           setUser({
             ...userData,
             username: userData.name,
@@ -54,11 +84,15 @@ export function useCurrentUser() {
           });
         }
       } else if (event === "SIGNED_OUT") {
-        setUser(null);
+        console.log("User signed out, clearing user data");
+        if (isMounted) {
+          setUser(null);
+        }
       }
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
