@@ -319,6 +319,15 @@ function LoadingSpinner() {
   );
 }
 
+// First, add the interface for bet details
+interface BetDetail {
+  combination: string;
+  amount: number;
+  is_rumble: boolean;
+  game_title: string;
+  draw_time: string;
+}
+
 export default function DashboardScreen() {
   const navigation = useNavigation();
   const { username } = useLocalSearchParams<{ username: string }>();
@@ -396,92 +405,66 @@ export default function DashboardScreen() {
     });
   };
 
-  const handleSubmitBet = async () => {
+  // Update the state type
+  const [betDetails, setBetDetails] = useState<string>("");
+
+  // Update the handleSubmitAllBets function
+  const handleSubmitAllBets = async () => {
     try {
-      if (betDetails.length === 0) {
-        setAlertConfig({
-          isVisible: true,
-          title: "Error",
-          message: "Please add some bets before submitting.",
-          type: "error",
-          onConfirm: () =>
-            setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-          confirmText: "OK",
-        });
+      if (!betDetails) {
+        Alert.alert("Error", "No bets to submit");
         return;
       }
 
-      // Validate bet details
-      const invalidBets = betDetails.filter(
-        (bet) => !bet.combination || !bet.amount || bet.amount <= 0
-      );
-
-      if (invalidBets.length > 0) {
-        setAlertConfig({
-          isVisible: true,
-          title: "Error",
-          message: "All bets must have a combination and valid amount.",
-          type: "error",
-          onConfirm: () =>
-            setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-          confirmText: "OK",
-        });
+      // Get current user
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert("Error", "You must be logged in to place bets");
         return;
       }
 
-      // Get the current game details
-      const eventData = GAME_DATA[activeTab as keyof typeof GAME_DATA];
+      // Parse bet details
+      const bets: BetDetail[] = JSON.parse(betDetails);
 
-      // Create the bet with actual data
-      const newBet = await createBet(
-        activeTab,
-        eventData.eventTime,
-        betDetails.map((detail) => ({
-          combination: detail.combination,
-          amount: Number(detail.amount),
-          is_rambol: detail.is_rambol,
-        }))
-      );
+      // Add user_id and bet_date to each bet
+      const betsToInsert = bets.map((bet) => ({
+        ...bet,
+        user_id: session.user.id,
+        bet_date: new Date().toISOString().split("T")[0],
+      }));
 
-      // Rest of your code...
-      const verifiedBet = await getBetById(newBet.id);
+      // Insert all bets
+      const { error } = await supabase.from("bets").insert(betsToInsert);
 
-      if (verifiedBet) {
-        setAlertConfig({
-          isVisible: true,
-          title: "Success",
-          message: `Bet #${verifiedBet.id} created successfully!`,
-          type: "success",
-          onConfirm: () => {
-            setAlertConfig((prev) => ({ ...prev, isVisible: false }));
-            setBetDetails([]);
-            setTotalBetValue(0);
-          },
-          confirmText: "OK",
-        });
+      if (error) throw error;
 
-        const allUserBets = await getCurrentUserBets();
-        console.log("All user bets:", allUserBets);
-      }
+      // Close the alert dialog first
+      setAlertConfig((prev) => ({ ...prev, isVisible: false }));
+
+      // Reset all states and params immediately
+      setBetDetails("");
+      setTotalBetValue(0);
+
+      // Force update the total bet value in the UI
+      requestAnimationFrame(() => {
+        setTotalBetValue(0);
+      });
+
+      // Reset navigation params
+      router.setParams({
+        totalBetValue: undefined,
+        betDetails: undefined,
+      });
+
+      // Show success message after state updates
+      Alert.alert("Success", "All bets have been submitted successfully", [
+        { text: "OK" },
+      ]);
     } catch (error) {
-      console.error("Error creating/verifying bet:", {
-        error,
-        message: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-
-      setAlertConfig({
-        isVisible: true,
-        title: "Error",
-        message:
-          error instanceof Error && error.message
-            ? error.message
-            : "Failed to create bet. Please try again.",
-        type: "error",
-        onConfirm: () =>
-          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-        confirmText: "OK",
-      });
+      console.error("Error submitting bets:", error);
+      Alert.alert("Error", "Failed to submit bets. Please try again.");
     }
   };
 
@@ -530,7 +513,7 @@ export default function DashboardScreen() {
   // Combined connection status
   const isOnline = isConnected && isSupabaseConnected;
 
-  // Add this useEffect to listen for route params changes
+  // Update the navigation effect
   useEffect(() => {
     const unsubscribe = navigation.addListener("state", (event: any) => {
       const params =
@@ -540,54 +523,13 @@ export default function DashboardScreen() {
           setTotalBetValue(Number(params.totalBetValue) || 0);
         }
         if ("betDetails" in params) {
-          try {
-            const details = JSON.parse(params.betDetails);
-            setBetDetails(details);
-          } catch (e) {
-            console.error("Error parsing bet details:", e);
-          }
+          setBetDetails(params.betDetails || "");
         }
       }
     });
 
     return () => unsubscribe();
   }, [navigation]);
-
-  const [betDetails, setBetDetails] = useState<
-    Array<{
-      combination: string;
-      amount: number;
-      is_rambol: boolean;
-    }>
-  >([]);
-
-  const handleSubmitBetClick = () => {
-    if (betDetails.length === 0) {
-      setAlertConfig({
-        isVisible: true,
-        title: "Error",
-        message: "Please add some bets before submitting.",
-        type: "error",
-        onConfirm: () =>
-          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-        confirmText: "OK",
-      });
-      return;
-    }
-
-    setAlertConfig({
-      isVisible: true,
-      title: "Confirm Submission",
-      message: `Are you sure you want to submit ${
-        betDetails.length
-      } bet(s) with total amount of ₱${totalBetValue.toFixed(2)}?`,
-      type: "info",
-      onConfirm: handleSubmitBet,
-      onCancel: () => setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-      confirmText: "Submit",
-      cancelText: "Cancel",
-    });
-  };
 
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -634,6 +576,35 @@ export default function DashboardScreen() {
   if (isAuthChecking || isSummaryLoading) {
     return <LoadingSpinner />;
   }
+
+  const handleSubmitBetClick = () => {
+    if (!betDetails) {
+      setAlertConfig({
+        isVisible: true,
+        title: "Error",
+        message: "Please add some bets before submitting.",
+        type: "error",
+        onConfirm: () =>
+          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+        confirmText: "OK",
+      });
+      return;
+    }
+
+    const bets = JSON.parse(betDetails);
+    setAlertConfig({
+      isVisible: true,
+      title: "Confirm Submission",
+      message: `Are you sure you want to submit ${
+        bets.length
+      } bet(s) with total amount of ₱${totalBetValue.toFixed(2)}?`,
+      type: "info",
+      onConfirm: handleSubmitAllBets,
+      onCancel: () => setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+      confirmText: "Submit",
+      cancelText: "Cancel",
+    });
+  };
 
   return (
     <StyledSafeAreaView className="flex-1 p-4 bg-[#FDFDFD]">

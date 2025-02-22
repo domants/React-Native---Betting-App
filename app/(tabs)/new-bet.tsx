@@ -13,6 +13,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
+import { supabase } from "@/lib/supabase";
+import { useNavigation } from "@react-navigation/native";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -38,6 +40,8 @@ export default function NewBetScreen() {
   ]);
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const navigation = useNavigation();
 
   useEffect(() => {
     router.setParams({ totalBetValue: totalAmount.toString() });
@@ -109,29 +113,32 @@ export default function NewBetScreen() {
   };
 
   const handleSubmitBet = () => {
-    setIsSubmitting(true);
-    if (betRows.some((row) => row.combination && row.amount)) {
-      Alert.alert("Success", "Bet successfully saved to card", [
-        {
-          text: "OK",
-          onPress: () => {
-            const formattedBetRows = betRows.map((row) => ({
-              combination: row.combination,
-              amount: Number(row.amount),
-              is_rambol: row.isRambol,
-            }));
+    try {
+      if (!betRows.some((row) => row.combination && row.amount)) {
+        Alert.alert("Error", "Please add at least one bet");
+        return;
+      }
 
-            router.setParams({
-              totalBetValue: totalAmount.toString(),
-              betDetails: JSON.stringify(formattedBetRows),
-            });
-            router.back();
-          },
-        },
-      ]);
-    } else {
-      Alert.alert("Error", "Please add at least one bet");
-      setIsSubmitting(false);
+      // Format bets for passing back to dashboard
+      const formattedBets = betRows
+        .filter((row) => row.combination && row.amount)
+        .map((row) => ({
+          combination: row.combination,
+          amount: Number(row.amount),
+          is_rumble: row.isRambol,
+          game_title: gameTitle,
+          draw_time: eventTime,
+        }));
+
+      // Pass back to dashboard
+      router.setParams({
+        totalBetValue: totalAmount.toString(),
+        betDetails: JSON.stringify(formattedBets),
+      });
+      router.back();
+    } catch (error) {
+      console.error("Error formatting bets:", error);
+      Alert.alert("Error", "Failed to prepare bets. Please try again.");
     }
   };
 
@@ -149,6 +156,21 @@ export default function NewBetScreen() {
     });
     router.back();
   };
+
+  const resetBetForm = () => {
+    setBetRows([{ id: 1, combination: "", isRambol: false, amount: "" }]);
+    setTotalAmount(0);
+    setIsSubmitting(false);
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      // Reset form when screen comes into focus
+      resetBetForm();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -264,7 +286,7 @@ export default function NewBetScreen() {
             disabled={isSubmitting}
           >
             <ThemedText className="text-white font-bold">
-              {isSubmitting ? "Submitting..." : "Submit Bet"}
+              {isSubmitting ? "Submitting..." : "Add Bet"}
             </ThemedText>
           </TouchableOpacity>
         </StyledView>
