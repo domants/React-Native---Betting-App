@@ -179,3 +179,55 @@ export async function updateUserAllocation(
   if (error) throw error;
   return data;
 }
+
+// fetch bet history
+export async function getBetHistory(date: string, time?: string) {
+  try {
+    console.log("Querying for date:", date);
+
+    // Get current user role
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    console.log("Current user:", user?.id);
+
+    const { data: userRole } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user?.id)
+      .single();
+    console.log("User role:", userRole?.role);
+
+    // Get bets for the specified date
+    let query = supabase
+      .from("bets")
+      .select(
+        `
+        combination,
+        amount,
+        game_title,
+        draw_time,
+        bet_date
+      `
+      )
+      .eq("bet_date", date);
+
+    const { data: bets, error: betsError } = await query;
+    console.log("Raw bets data:", bets);
+    console.log("Query error if any:", betsError);
+
+    if (betsError) throw betsError;
+    if (!bets || bets.length === 0) return [];
+
+    return bets.map((bet) => ({
+      combination: bet.combination,
+      amount: Number(bet.amount),
+      game_title: bet.game_title,
+      draw_time: bet.draw_time,
+      bet_date: bet.bet_date,
+    }));
+  } catch (error) {
+    console.error("Error fetching bet history:", error);
+    throw error;
+  }
+}

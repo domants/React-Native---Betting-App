@@ -15,6 +15,7 @@ import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useNavigation } from "@react-navigation/native";
+import React from "react";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -29,11 +30,24 @@ interface BetRow {
   amount: string;
 }
 
+// Add interface for bet type
+interface Bet {
+  combination: string;
+  amount: number;
+  is_rumble: boolean;
+  game_title: string;
+  draw_time: string;
+}
+
 export default function NewBetScreen() {
-  const { gameTitle, eventTime } = useLocalSearchParams<{
-    gameTitle: string;
-    eventTime: string;
-  }>();
+  // Get route params including existing bets and reset flag
+  const { gameTitle, eventTime, existingBets, shouldResetForm } =
+    useLocalSearchParams<{
+      gameTitle: string;
+      eventTime: string;
+      existingBets?: string;
+      shouldResetForm?: string;
+    }>();
 
   const [betRows, setBetRows] = useState<BetRow[]>([
     { id: 1, combination: "", isRambol: false, amount: "" },
@@ -43,9 +57,55 @@ export default function NewBetScreen() {
 
   const navigation = useNavigation();
 
+  const resetBetForm = () => {
+    setBetRows([{ id: 1, combination: "", isRambol: false, amount: "" }]);
+    setTotalAmount(0);
+    setIsSubmitting(false);
+  };
+
+  // Effect to load existing bets
   useEffect(() => {
-    router.setParams({ totalBetValue: totalAmount.toString() });
-  }, [totalAmount]);
+    if (existingBets) {
+      try {
+        const allBets = JSON.parse(existingBets);
+        // If empty array, reset form
+        if (allBets.length === 0) {
+          resetBetForm();
+          return;
+        }
+
+        const gameBets = allBets
+          .filter((bet: Bet) => bet.game_title === gameTitle)
+          .map((bet: Bet, index: number) => ({
+            id: index + 1,
+            combination: bet.combination,
+            isRambol: bet.is_rumble,
+            amount: bet.amount.toString(),
+          }));
+
+        if (gameBets.length > 0) {
+          setBetRows(gameBets);
+          const total = gameBets.reduce(
+            (sum: number, row: BetRow) => sum + Number(row.amount),
+            0
+          );
+          setTotalAmount(total);
+        } else {
+          resetBetForm();
+        }
+      } catch (error) {
+        console.error("Error parsing existing bets:", error);
+        resetBetForm();
+      }
+    }
+  }, [gameTitle, existingBets]);
+
+  // Effect to handle form reset
+  useEffect(() => {
+    if (shouldResetForm === "true") {
+      resetBetForm();
+    }
+  }, [shouldResetForm]);
 
   const handleCombinationChange = (id: number, value: string) => {
     setBetRows((prev) =>
@@ -119,8 +179,14 @@ export default function NewBetScreen() {
         return;
       }
 
-      // Format bets for passing back to dashboard
-      const formattedBets = betRows
+      // Get existing bets
+      let allBets: Bet[] = existingBets ? JSON.parse(existingBets) : [];
+
+      // Remove existing bets for this game
+      allBets = allBets.filter((bet) => bet.game_title !== gameTitle);
+
+      // Add new bets
+      const newBets = betRows
         .filter((row) => row.combination && row.amount)
         .map((row) => ({
           combination: row.combination,
@@ -130,10 +196,19 @@ export default function NewBetScreen() {
           draw_time: eventTime,
         }));
 
-      // Pass back to dashboard
+      // Combine bets
+      allBets = [...allBets, ...newBets];
+
+      // Calculate total
+      const totalBetAmount = allBets.reduce(
+        (sum: number, bet: Bet) => sum + Number(bet.amount),
+        0
+      );
+
+      // Update params and go back
       router.setParams({
-        totalBetValue: totalAmount.toString(),
-        betDetails: JSON.stringify(formattedBets),
+        totalBetValue: totalBetAmount.toString(),
+        betDetails: JSON.stringify(allBets),
       });
       router.back();
     } catch (error) {
@@ -143,33 +218,34 @@ export default function NewBetScreen() {
   };
 
   const handleBack = () => {
-    // Only update params and go back without alert
-    const formattedBetRows = betRows.map((row) => ({
-      combination: row.combination,
-      amount: Number(row.amount),
-      is_rambol: row.isRambol,
-    }));
+    // Get existing bets from params
+    let allBets: Bet[] = existingBets ? JSON.parse(existingBets) : [];
+
+    const newBets = betRows
+      .filter((row) => row.combination && row.amount)
+      .map((row) => ({
+        combination: row.combination,
+        amount: Number(row.amount),
+        is_rumble: row.isRambol,
+        game_title: gameTitle,
+        draw_time: eventTime,
+      }));
+
+    allBets = [...allBets, ...newBets];
+    const totalBetAmount = allBets.reduce(
+      (sum: number, bet: Bet) => sum + Number(bet.amount),
+      0
+    );
 
     router.setParams({
-      totalBetValue: totalAmount.toString(),
-      betDetails: JSON.stringify(formattedBetRows),
+      totalBetValue: totalBetAmount.toString(),
+      betDetails: JSON.stringify(allBets),
     });
     router.back();
   };
 
-  const resetBetForm = () => {
-    setBetRows([{ id: 1, combination: "", isRambol: false, amount: "" }]);
-    setTotalAmount(0);
-    setIsSubmitting(false);
-  };
-
   useEffect(() => {
-    const unsubscribe = navigation.addListener("focus", () => {
-      // Reset form when screen comes into focus
-      resetBetForm();
-    });
-
-    return unsubscribe;
+    // No reset on focus
   }, [navigation]);
 
   return (

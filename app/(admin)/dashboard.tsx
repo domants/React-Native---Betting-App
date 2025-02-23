@@ -56,7 +56,7 @@ const adminOptions: AdminOption[] = [
     route: "/(admin)/daily-bets",
   },
   {
-    title: "Bet History",
+    title: "Bets & Winning History",
     description: "View historical bets and winnings",
     icon: "history",
     route: "/(admin)/history",

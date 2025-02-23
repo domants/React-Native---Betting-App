@@ -7,6 +7,7 @@ import { ThemedText } from "@/components/ThemedText";
 export default function Index() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     checkSession();
@@ -28,7 +29,7 @@ export default function Index() {
       const { data: userDetails } = await supabase
         .from("users")
         .select("role")
-        .eq("email", session.user.email)
+        .eq("id", session.user.id)
         .single();
 
       if (!userDetails) {
@@ -36,6 +37,7 @@ export default function Index() {
         setIsAuthenticated(false);
       } else {
         setIsAuthenticated(true);
+        setUserRole(userDetails.role);
       }
     } catch (error) {
       console.error("Session check error:", error);
@@ -53,7 +55,20 @@ export default function Index() {
     );
   }
 
-  return (
-    <Redirect href={isAuthenticated ? "/(admin)/dashboard" : "/(auth)/login"} />
-  );
+  // Route based on authentication and role
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  // Route to appropriate dashboard based on role
+  switch (userRole?.toLowerCase()) {
+    case "admin":
+      return <Redirect href="/(admin)/dashboard" />;
+    case "coordinator":
+    case "sub-coordinator":
+    case "usher":
+      return <Redirect href="/(tabs)/dashboard" />;
+    default:
+      return <Redirect href="/(auth)/login" />;
+  }
 }

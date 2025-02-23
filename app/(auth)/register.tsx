@@ -102,7 +102,7 @@ export default function RegisterScreen() {
     : [];
 
   const handleRegister = async () => {
-    if (!email || !password || !name || !selectedRole) {
+    if (!name || !email || !password || !selectedRole) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
@@ -110,41 +110,50 @@ export default function RegisterScreen() {
     try {
       setIsRegistering(true);
 
-      // Create auth user
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role: selectedRole,
-            parent_id: user?.id, // Store reference to parent user
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (!data.user) {
-        throw new Error("Failed to create user");
+      // Get current user's session to maintain it
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+      if (!currentSession) {
+        throw new Error("No active session");
       }
 
-      // Create user profile
-      const { error: profileError } = await supabase.from("users").insert({
-        id: data.user.id,
-        email: email.toLowerCase(),
-        name,
-        role: selectedRole,
-        parent_id: user?.id, // Store reference to parent user
-        created_at: new Date().toISOString(),
+      // Create the new user account
+      const { data: newAuthUser, error: signUpError } =
+        await supabase.auth.signUp({
+          email: email.toLowerCase(),
+          password: password,
+        });
+
+      if (signUpError) throw signUpError;
+      if (!newAuthUser.user) throw new Error("Failed to create user");
+
+      // Create user record in users table
+      const { error: userError } = await supabase.from("users").insert([
+        {
+          id: newAuthUser.user.id,
+          name,
+          email: email.toLowerCase(),
+          role: selectedRole,
+          parent_id: currentSession.user.id, // Set the parent_id to current coordinator
+        },
+      ]);
+
+      if (userError) throw userError;
+
+      // Important: Restore the coordinator's session
+      await supabase.auth.setSession({
+        access_token: currentSession.access_token,
+        refresh_token: currentSession.refresh_token,
       });
 
-      if (profileError) throw profileError;
-
-      Alert.alert("Success", "Account created successfully.", [
+      Alert.alert("Success", "User account created successfully", [
         {
           text: "OK",
-          onPress: () => router.replace("/(admin)/users/manage"),
+          onPress: () => {
+            // Navigate back to the previous screen instead of management
+            router.back();
+          },
         },
       ]);
     } catch (error: any) {

@@ -204,26 +204,45 @@ function isEventAvailable(eventTime: string): boolean {
   return false;
 }
 
+const getEventTime = (tab: string) => {
+  // Convert tab names to standardized format - handle both AM and PM
+  const tabTime = tab.toLowerCase().replace(/[^0-9apm]/g, "");
+
+  // Return the next draw time based on the selected tab
+  switch (tabTime) {
+    case "11am":
+      return "11:00";
+    case "5pm":
+      return "17:00";
+    case "9pm":
+      return "21:00";
+    default:
+      // If no valid tab is selected, return null
+      console.log("Invalid tab time:", tab); // For debugging
+      return null;
+  }
+};
+
 const GAME_DATA = {
   "11AM Events": {
-    eventTime: "11:00 AM",
+    eventTime: "11:00",
     games: [
-      { title: "11AM SWERTRES", time: "11:00 AM" },
-      { title: "11AM LAST TWO", time: "11:00 AM" },
+      { title: "SWERTRES", time: "11:00 AM" },
+      { title: "LAST TWO", time: "11:00 AM" },
     ],
   },
   "5PM Events": {
-    eventTime: "5:00 PM",
+    eventTime: "17:00",
     games: [
-      { title: "5PM SWERTRES", time: "5:00 PM" },
-      { title: "5PM LAST TWO", time: "5:00 PM" },
+      { title: "SWERTRES", time: "5:00 PM" },
+      { title: "LAST TWO", time: "5:00 PM" },
     ],
   },
   "9PM Events": {
-    eventTime: "9:00 PM",
+    eventTime: "21:00",
     games: [
-      { title: "9PM SWERTRES", time: "9:00 PM" },
-      { title: "9PM LAST TWO", time: "9:00 PM" },
+      { title: "SWERTRES", time: "9:00 PM" },
+      { title: "LAST TWO", time: "9:00 PM" },
     ],
   },
 };
@@ -380,38 +399,64 @@ export default function DashboardScreen() {
 
   const [totalBetValue, setTotalBetValue] = useState<number>(0);
 
+  // Add this state to track all bets
+  const [allBets, setAllBets] = useState<
+    Array<{
+      combination: string;
+      amount: number;
+      is_rumble: boolean;
+      game_title: string;
+      draw_time: string;
+    }>
+  >([]);
+
+  // Get params using useLocalSearchParams
+  const { betDetails, totalBetValue: paramTotalBetValue } =
+    useLocalSearchParams<{
+      betDetails?: string;
+      totalBetValue?: string;
+    }>();
+
+  // Update useEffect to handle JSON parsing safely
+  useEffect(() => {
+    if (betDetails) {
+      try {
+        const bets = JSON.parse(betDetails);
+        setAllBets(bets);
+        setTotalBetValue(
+          bets.reduce((sum: number, bet: any) => sum + Number(bet.amount), 0)
+        );
+      } catch (error) {
+        console.error("Error parsing bet details:", error);
+        // Initialize with empty state if parsing fails
+        setAllBets([]);
+        setTotalBetValue(0);
+      }
+    }
+  }, [betDetails]);
+
+  // Modify handleAddBet to pass existing bets
   const handleAddBet = (gameTitle: string) => {
-    const eventData = GAME_DATA[activeTab as keyof typeof GAME_DATA];
-    if (!isEventAvailable(eventData.eventTime)) {
-      setAlertConfig({
-        isVisible: true,
-        title: "Betting Closed",
-        message: `This event's betting period has ended. Betting closes ${CUTOFF_BEFORE_EVENT} minutes before the event time.`,
-        type: "warning",
-        onConfirm: () =>
-          setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-        confirmText: "OK",
-      });
+    const eventTime = getEventTime(activeTab);
+    if (!eventTime) {
+      Alert.alert("Error", "Invalid draw time selected");
       return;
     }
 
-    // Navigate to new bet screen
     router.push({
       pathname: "/(tabs)/new-bet",
       params: {
         gameTitle,
-        eventTime: eventData.eventTime,
+        eventTime,
+        existingBets: JSON.stringify(allBets),
       },
     });
   };
 
-  // Update the state type
-  const [betDetails, setBetDetails] = useState<string>("");
-
-  // Update the handleSubmitAllBets function
+  // Update handleSubmitAllBets to handle JSON safely and close the alert
   const handleSubmitAllBets = async () => {
     try {
-      if (!betDetails) {
+      if (!allBets || allBets.length === 0) {
         Alert.alert("Error", "No bets to submit");
         return;
       }
@@ -425,11 +470,8 @@ export default function DashboardScreen() {
         return;
       }
 
-      // Parse bet details
-      const bets: BetDetail[] = JSON.parse(betDetails);
-
       // Add user_id and bet_date to each bet
-      const betsToInsert = bets.map((bet) => ({
+      const betsToInsert = allBets.map((bet) => ({
         ...bet,
         user_id: session.user.id,
         bet_date: new Date().toISOString().split("T")[0],
@@ -437,33 +479,40 @@ export default function DashboardScreen() {
 
       // Insert all bets
       const { error } = await supabase.from("bets").insert(betsToInsert);
-
       if (error) throw error;
 
-      // Close the alert dialog first
+      // Close the alert modal first
       setAlertConfig((prev) => ({ ...prev, isVisible: false }));
 
-      // Reset all states and params immediately
-      setBetDetails("");
+      // Reset states immediately
+      setAllBets([]);
       setTotalBetValue(0);
 
-      // Force update the total bet value in the UI
-      requestAnimationFrame(() => {
-        setTotalBetValue(0);
-      });
-
-      // Reset navigation params
+      // Clear router params to reset form state
       router.setParams({
-        totalBetValue: undefined,
-        betDetails: undefined,
+        totalBetValue: "0",
+        betDetails: JSON.stringify([]),
+        shouldResetForm: "true",
       });
 
-      // Show success message after state updates
+      // Show success message
       Alert.alert("Success", "All bets have been submitted successfully", [
-        { text: "OK" },
+        {
+          text: "OK",
+          onPress: () => {
+            setAllBets([]);
+            setTotalBetValue(0);
+            router.setParams({
+              totalBetValue: "0",
+              betDetails: JSON.stringify([]),
+              shouldResetForm: "true",
+            });
+          },
+        },
       ]);
     } catch (error) {
       console.error("Error submitting bets:", error);
+      setAlertConfig((prev) => ({ ...prev, isVisible: false }));
       Alert.alert("Error", "Failed to submit bets. Please try again.");
     }
   };
@@ -523,7 +572,13 @@ export default function DashboardScreen() {
           setTotalBetValue(Number(params.totalBetValue) || 0);
         }
         if ("betDetails" in params) {
-          setBetDetails(params.betDetails || "");
+          setAllBets(JSON.parse(params.betDetails as string));
+          setTotalBetValue(
+            JSON.parse(params.betDetails as string).reduce(
+              (sum: number, bet: any) => sum + Number(bet.amount),
+              0
+            )
+          );
         }
       }
     });
@@ -570,7 +625,25 @@ export default function DashboardScreen() {
     enabled: !!userId,
   });
 
-  const { user } = useCurrentUser();
+  // Add user data fetching
+  const { data: userData, isLoading: isUserLoading } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      const { data: userData, error } = await supabase
+        .from("users")
+        .select("name, role")
+        .eq("id", user.id)
+        .single();
+
+      if (error) throw error;
+      return userData;
+    },
+  });
 
   // Show loading state while either auth is checking or summary is loading
   if (isAuthChecking || isSummaryLoading) {
@@ -578,7 +651,7 @@ export default function DashboardScreen() {
   }
 
   const handleSubmitBetClick = () => {
-    if (!betDetails) {
+    if (allBets.length === 0) {
       setAlertConfig({
         isVisible: true,
         title: "Error",
@@ -591,12 +664,12 @@ export default function DashboardScreen() {
       return;
     }
 
-    const bets = JSON.parse(betDetails);
+    const bets = JSON.stringify(allBets);
     setAlertConfig({
       isVisible: true,
       title: "Confirm Submission",
       message: `Are you sure you want to submit ${
-        bets.length
+        allBets.length
       } bet(s) with total amount of ₱${totalBetValue.toFixed(2)}?`,
       type: "info",
       onConfirm: handleSubmitAllBets,
@@ -612,9 +685,11 @@ export default function DashboardScreen() {
       <StyledView className="flex-row justify-between items-start mb-5">
         <StyledView>
           <ThemedText className="text-2xl font-bold mb-1 text-[#9654F7]">
-            Welcome {username || "Guest"}!
+            Welcome, {isUserLoading ? "..." : userData?.name || "Guest"}!
           </ThemedText>
-          <ThemedText className="text-sm text-[#867F91]">{date}</ThemedText>
+          <ThemedText className="text-gray-500">
+            {isUserLoading ? "..." : userData?.role || "Loading role..."}
+          </ThemedText>
         </StyledView>
         <StyledView>
           <StyledView className="flex-row items-center mb-2">
