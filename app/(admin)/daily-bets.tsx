@@ -1,5 +1,6 @@
 import { View, TouchableOpacity, TextInput, Alert } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
+//@ts-ignore
+import { ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
