@@ -207,15 +207,16 @@ export default function DailyBetsScreen() {
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
-      {/* Header */}
-      <StyledView className="p-4 flex-row items-center">
-        <TouchableOpacity onPress={() => router.back()} className="mr-3">
-          <MaterialIcons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <ThemedText className="text-2xl font-bold">Daily Bets</ThemedText>
-      </StyledView>
+      {/* Fixed Header Section */}
+      <StyledView className="p-4">
+        {/* Header */}
+        <StyledView className="flex-row items-center mb-6">
+          <TouchableOpacity onPress={() => router.back()} className="mr-3">
+            <MaterialIcons name="arrow-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <ThemedText className="text-2xl font-bold">Daily Bets</ThemedText>
+        </StyledView>
 
-      <ScrollView className="flex-1 px-4">
         {/* Date Navigation */}
         <StyledView className="flex-row items-center justify-between bg-white rounded-lg p-3 mb-4">
           <TouchableOpacity onPress={() => navigateDate("prev")}>
@@ -240,7 +241,7 @@ export default function DailyBetsScreen() {
           </TouchableOpacity>
         </StyledView>
 
-        {/* Stats Cards - Updated styling to match history screen */}
+        {/* Stats Cards */}
         <StyledView className="flex-row mb-4 space-x-2">
           <StyledView className="flex-1 p-4 bg-white rounded-lg shadow">
             <ThemedText className="text-gray-600">Total Bets</ThemedText>
@@ -257,7 +258,7 @@ export default function DailyBetsScreen() {
         {/* Game Type Dropdown */}
         <TouchableOpacity
           onPress={() => setShowGameDropdown(!showGameDropdown)}
-          className="bg-white p-4 rounded-lg mb-4 flex-row justify-between items-center shadow"
+          className="mb-4 p-4 border border-gray-200 rounded-lg flex-row justify-between items-center"
         >
           <ThemedText>
             {activeGameFilter === "all"
@@ -271,43 +272,13 @@ export default function DailyBetsScreen() {
               showGameDropdown ? "keyboard-arrow-up" : "keyboard-arrow-down"
             }
             size={24}
-            color="#000"
+            color="#666"
           />
         </TouchableOpacity>
+      </StyledView>
 
-        {/* Dropdown Menu */}
-        {showGameDropdown && (
-          <StyledView className="bg-white rounded-lg mb-4 shadow absolute top-[215] left-4 right-4 z-10">
-            {[
-              { id: "all", label: "All Games" },
-              { id: "l2", label: "Last Two" },
-              { id: "3d", label: "Swertres" },
-            ].map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                onPress={() => {
-                  setActiveGameFilter(option.id as GameFilter);
-                  setShowGameDropdown(false);
-                }}
-                className={`p-4 border-b border-gray-100 ${
-                  activeGameFilter === option.id ? "bg-gray-50" : ""
-                }`}
-              >
-                <ThemedText
-                  className={
-                    activeGameFilter === option.id
-                      ? "text-[#6F13F5]"
-                      : "text-gray-600"
-                  }
-                >
-                  {option.label}
-                </ThemedText>
-              </TouchableOpacity>
-            ))}
-          </StyledView>
-        )}
-
-        {/* Bets List */}
+      {/* Scrollable Bets List */}
+      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
         {filteredBets.length > 0 ? (
           filteredBets.map((bet: Bet) => (
             <StyledView
@@ -347,19 +318,52 @@ export default function DailyBetsScreen() {
             </ThemedText>
           </StyledView>
         )}
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            display="default"
-            onChange={(event, date) => {
-              setShowDatePicker(false);
-              if (date) setSelectedDate(date);
-            }}
-          />
-        )}
       </ScrollView>
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setShowDatePicker(false);
+            if (date) setSelectedDate(date);
+          }}
+        />
+      )}
+
+      {/* Game Type Dropdown Menu */}
+      {showGameDropdown && (
+        <StyledView className="bg-white rounded-lg shadow absolute top-[215] left-4 right-4 z-10">
+          {[
+            { id: "all", label: "All Games" },
+            { id: "l2", label: "Last Two" },
+            { id: "3d", label: "Swertres" },
+          ].map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              onPress={() => {
+                setActiveGameFilter(option.id as GameFilter);
+                setShowGameDropdown(false);
+              }}
+              className={`p-4 border-b border-gray-100 ${
+                activeGameFilter === option.id ? "bg-gray-50" : ""
+              }`}
+            >
+              <ThemedText
+                className={
+                  activeGameFilter === option.id
+                    ? "text-[#6F13F5]"
+                    : "text-gray-600"
+                }
+              >
+                {option.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </StyledView>
+      )}
     </StyledSafeAreaView>
   );
 }

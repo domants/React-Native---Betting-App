@@ -49,6 +49,14 @@ function formatDrawTime(timeStr: string): string {
   return `${displayHour} ${ampm}`;
 }
 
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function HistoryScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -363,17 +371,37 @@ export default function HistoryScreen() {
           </ThemedText>
         </StyledView>
 
-        {/* Date Range Selector */}
-        <TouchableOpacity
-          onPress={() => setShowDatePicker(true)}
-          className="flex-row items-center p-4 mb-4 border border-gray-200 rounded-lg"
-        >
-          <MaterialIcons name="calendar-today" size={20} color="#666" />
-          <ThemedText className="ml-2">
-            {dateRange.start.toLocaleDateString()} -{" "}
-            {dateRange.end.toLocaleDateString()}
-          </ThemedText>
-        </TouchableOpacity>
+        {/* Replace the Date Range Selector with this new Date Navigation */}
+        <StyledView className="flex-row items-center justify-between bg-white rounded-lg p-3 mb-4">
+          <TouchableOpacity
+            onPress={() => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() - 1);
+              setSelectedDate(newDate);
+            }}
+          >
+            <MaterialIcons name="chevron-left" size={24} color="#000" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            className="flex-1 mx-4"
+          >
+            <ThemedText className="text-center">
+              {formatDate(selectedDate)}
+            </ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() + 1);
+              setSelectedDate(newDate);
+            }}
+          >
+            <MaterialIcons name="chevron-right" size={24} color="#000" />
+          </TouchableOpacity>
+        </StyledView>
 
         {/* Stats Cards */}
         <StyledView className="flex-row mb-4 space-x-2">
