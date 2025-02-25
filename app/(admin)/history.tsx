@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
@@ -77,10 +78,18 @@ function formatDate(date: Date): string {
   });
 }
 
+// Add this interface for the modal state
+interface DetailsModalState {
+  isVisible: boolean;
+  winning?: WinningHistory;
+}
+
 export default function HistoryScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<"all" | "l2" | "3d">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "l2" | "swertres">(
+    "all"
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   // Add user role check
@@ -94,9 +103,14 @@ export default function HistoryScreen() {
 
   // First, add state for the game dropdown
   const [showGameDropdown, setShowGameDropdown] = useState(false);
-  const [selectedGameType, setSelectedGameType] = useState<"all" | "l2" | "3d">(
-    "all"
-  );
+  const [selectedGameType, setSelectedGameType] = useState<
+    "all" | "l2" | "swertres"
+  >("all");
+
+  // Add state for the modal
+  const [detailsModal, setDetailsModal] = useState<DetailsModalState>({
+    isVisible: false,
+  });
 
   // Check user role on mount
   useEffect(() => {
@@ -179,7 +193,7 @@ export default function HistoryScreen() {
   // Filter winnings based on game type
   const filteredWinnings = winnings.filter((winning) => {
     if (activeFilter === "l2") return winning.game_title === "LAST TWO";
-    if (activeFilter === "3d") return winning.game_title === "SWERTRES";
+    if (activeFilter === "swertres") return winning.game_title === "SWERTRES";
     return true;
   });
 
@@ -204,7 +218,13 @@ export default function HistoryScreen() {
 
         {/* Date Navigation */}
         <StyledView className="flex-row items-center justify-between mb-4">
-          <TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() - 1);
+              setSelectedDate(newDate);
+            }}
+          >
             <MaterialIcons name="chevron-left" size={24} color="#000" />
           </TouchableOpacity>
 
@@ -212,28 +232,32 @@ export default function HistoryScreen() {
             onPress={() => setShowDatePicker(true)}
             className="bg-white px-6 py-2 rounded-lg border border-gray-200"
           >
-            <ThemedText>February 25, 2025</ThemedText>
+            <ThemedText>{formatDate(selectedDate)}</ThemedText>
           </TouchableOpacity>
 
-          <TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() + 1);
+              setSelectedDate(newDate);
+            }}
+          >
             <MaterialIcons name="chevron-right" size={24} color="#000" />
           </TouchableOpacity>
         </StyledView>
 
-        {/* Search Bar */}
+        {/* Search and Download Row */}
         <StyledView className="flex-row items-center mb-4">
-          <StyledView className="flex-1 mr-2">
-            <TextInput
-              placeholder="Search winners..."
-              className="bg-white px-4 py-2 rounded-lg border border-gray-200"
-            />
-          </StyledView>
+          <TextInput
+            placeholder="Search winners..."
+            className="flex-1 bg-white px-4 py-2 rounded-lg border border-gray-200 mr-2"
+          />
           <TouchableOpacity>
             <MaterialIcons name="file-download" size={24} color="#000" />
           </TouchableOpacity>
         </StyledView>
 
-        {/* Game Type Filter (keep existing dropdown) */}
+        {/* Game Type Filter Dropdown */}
         <TouchableOpacity
           onPress={() => setShowGameDropdown(!showGameDropdown)}
           className="mb-4 bg-white p-3 rounded-lg flex-row justify-between items-center border border-gray-200"
@@ -254,21 +278,63 @@ export default function HistoryScreen() {
           />
         </TouchableOpacity>
 
-        {/* Keep existing dropdown menu */}
+        {/* Table Header */}
+        <StyledView className="flex-row py-2 border-b border-gray-200">
+          <ThemedText className="w-[25%] font-semibold">Ticket No.</ThemedText>
+          <ThemedText className="w-[30%] font-semibold">Bettor</ThemedText>
+          <ThemedText className="w-[25%] font-semibold text-right">
+            Amount
+          </ThemedText>
+          <ThemedText className="w-[20%] font-semibold text-center">
+            Action
+          </ThemedText>
+        </StyledView>
+
+        {/* Winnings List as Table */}
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          {filteredWinnings.map((winning) => (
+            <StyledView
+              key={winning.id}
+              className="flex-row py-3 border-b border-gray-100 items-center"
+            >
+              <ThemedText className="w-[25%]" numberOfLines={1}>
+                {winning.ticket_number}
+              </ThemedText>
+              <ThemedText className="w-[30%]" numberOfLines={1}>
+                {winning.users?.name}
+              </ThemedText>
+              <ThemedText className="w-[25%] text-right">
+                ₱{winning.bet_amount}
+              </ThemedText>
+              <StyledView className="w-[20%] items-center">
+                <TouchableOpacity
+                  className="bg-[#6F13F5] px-3 py-1 rounded-lg"
+                  onPress={() => setDetailsModal({ isVisible: true, winning })}
+                >
+                  <ThemedText className="text-white text-sm">
+                    Details
+                  </ThemedText>
+                </TouchableOpacity>
+              </StyledView>
+            </StyledView>
+          ))}
+        </ScrollView>
+
+        {/* Dropdown Menu (Absolute Position) */}
         {showGameDropdown && (
-          <StyledView className="bg-white rounded-lg mb-4 shadow absolute top-[200] left-4 right-4 z-10">
+          <StyledView className="bg-white rounded-lg shadow absolute top-[200] left-4 right-4 z-10">
             {[
               { id: "all", label: "All Games" },
               { id: "l2", label: "Last Two" },
-              { id: "3d", label: "Swertres" },
+              { id: "swertres", label: "Swertres" },
             ].map((option) => (
               <TouchableOpacity
                 key={option.id}
                 onPress={() => {
-                  setSelectedGameType(option.id as "all" | "l2" | "3d");
+                  setSelectedGameType(option.id as "all" | "l2" | "swertres");
                   setShowGameDropdown(false);
                 }}
-                className={`p-4 border-b border-gray-100`}
+                className="p-4 border-b border-gray-100"
               >
                 <ThemedText
                   className={
@@ -284,47 +350,6 @@ export default function HistoryScreen() {
           </StyledView>
         )}
 
-        {/* Winnings List */}
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {filteredWinnings.map((winning) => (
-            <StyledView
-              key={winning.id}
-              className="bg-white p-4 rounded-lg border border-gray-100 mb-3"
-            >
-              {/* Ticket Number Row */}
-              <StyledView className="flex-row items-center mb-2">
-                <MaterialIcons name="receipt" size={20} color="#666" />
-                <ThemedText className="ml-2 font-semibold">
-                  {winning.ticket_number}
-                </ThemedText>
-                <ThemedText className="ml-auto">
-                  {formatDrawTime(winning.draw_time)}
-                </ThemedText>
-              </StyledView>
-
-              {/* Name */}
-              <ThemedText className="text-gray-600">
-                {winning.users?.name}
-              </ThemedText>
-
-              {/* Contact Number */}
-              <ThemedText className="text-gray-600">
-                {winning.contact_number}
-              </ThemedText>
-
-              {/* Amount Row */}
-              <ThemedText className="text-gray-600 mt-1">
-                Amount: ₱{winning.bet_amount}
-              </ThemedText>
-
-              {/* Total Win Row */}
-              <ThemedText className="font-bold text-[#6F13F5] mt-1">
-                Total Win: ₱{winning.winning_amount}
-              </ThemedText>
-            </StyledView>
-          ))}
-        </ScrollView>
-
         {/* Date Picker Modal */}
         {showDatePicker && (
           <DateTimePicker
@@ -338,6 +363,68 @@ export default function HistoryScreen() {
           />
         )}
       </StyledView>
+
+      {/* Details Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={detailsModal.isVisible}
+        onRequestClose={() => setDetailsModal({ isVisible: false })}
+      >
+        <StyledView className="flex-1 bg-black/50 justify-center items-center">
+          <StyledView className="bg-white w-[90%] rounded-xl p-4">
+            <StyledView className="flex-row justify-between items-center mb-4">
+              <ThemedText className="text-xl font-bold">
+                Winning Bet Details
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() => setDetailsModal({ isVisible: false })}
+              >
+                <MaterialIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </StyledView>
+
+            {detailsModal.winning && (
+              <StyledView className="bg-gray-50 rounded-lg p-4">
+                <StyledView className="flex-row justify-between py-2 border-b border-gray-200">
+                  <ThemedText className="text-gray-600">Ticket No:</ThemedText>
+                  <ThemedText className="font-semibold">
+                    {detailsModal.winning.ticket_number}
+                  </ThemedText>
+                </StyledView>
+
+                <StyledView className="flex-row justify-between py-2 border-b border-gray-200">
+                  <ThemedText className="text-gray-600">Bettor:</ThemedText>
+                  <ThemedText className="font-semibold">
+                    {detailsModal.winning.users?.name}
+                  </ThemedText>
+                </StyledView>
+
+                <StyledView className="flex-row justify-between py-2 border-b border-gray-200">
+                  <ThemedText className="text-gray-600">Contact:</ThemedText>
+                  <ThemedText className="font-semibold">
+                    {detailsModal.winning.contact_number}
+                  </ThemedText>
+                </StyledView>
+
+                <StyledView className="flex-row justify-between py-2 border-b border-gray-200">
+                  <ThemedText className="text-gray-600">Amount:</ThemedText>
+                  <ThemedText className="font-semibold">
+                    ₱{detailsModal.winning.bet_amount}
+                  </ThemedText>
+                </StyledView>
+
+                <StyledView className="flex-row justify-between py-2">
+                  <ThemedText className="text-gray-600">Total Win:</ThemedText>
+                  <ThemedText className="font-semibold text-[#6F13F5]">
+                    ₱{detailsModal.winning.winning_amount}
+                  </ThemedText>
+                </StyledView>
+              </StyledView>
+            )}
+          </StyledView>
+        </StyledView>
+      </Modal>
     </StyledSafeAreaView>
   );
 }
