@@ -1,5 +1,5 @@
 //@ts-ignore
-import { View, Alert, Modal, TouchableOpacity } from "react-native";
+import { View, Alert, Modal, TouchableOpacity, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
@@ -251,11 +251,12 @@ interface AlertDialogProps {
   isVisible: boolean;
   title: string;
   message: string;
-  onConfirm?: () => void;
+  onConfirm?: ((contactNumber: string) => void) | (() => void);
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
   type?: "success" | "warning" | "error" | "info";
+  showContactInput?: boolean;
 }
 
 function AlertDialog({
@@ -264,67 +265,72 @@ function AlertDialog({
   message,
   onConfirm,
   onCancel,
-  confirmText = "Confirm",
+  confirmText = "OK",
   cancelText = "Cancel",
   type = "info",
+  showContactInput = false,
 }: AlertDialogProps) {
-  const getColorByType = () => {
-    switch (type) {
-      case "success":
-        return "bg-green-600";
-      case "warning":
-        return "bg-yellow-600";
-      case "error":
-        return "bg-red-600";
-      default:
-        return "bg-[#6200ee]";
-    }
-  };
+  const [inputContactNumber, setInputContactNumber] = useState("");
+
+  if (!isVisible) return null;
 
   return (
     <Modal
-      transparent
-      visible={isVisible}
       animationType="fade"
+      transparent={true}
+      visible={isVisible}
       onRequestClose={onCancel}
     >
-      <StyledView className="flex-1 justify-center items-center bg-black/80">
-        <ThemedView className="w-[90%] max-w-sm rounded-2xl bg-black border border-white/20">
-          <StyledView className={`p-4 rounded-t-2xl ${getColorByType()}`}>
-            <ThemedText className="text-lg font-bold text-white">
-              {title}
-            </ThemedText>
-          </StyledView>
+      <StyledView className="flex-1 justify-center items-center bg-black/50">
+        <StyledView className="bg-white rounded-xl p-4 w-[90%] max-w-md">
+          <ThemedText className="text-xl font-bold mb-2">{title}</ThemedText>
+          <ThemedText className="text-base mb-4">{message}</ThemedText>
 
-          <StyledView className="p-4">
-            <ThemedText className="text-base mb-4 text-white">
-              {message}
-            </ThemedText>
-
-            <StyledView className="flex-row justify-end gap-3">
-              {onCancel && (
-                <ThemedView
-                  className="py-2 px-4 rounded-full bg-orange-300"
-                  onTouchEnd={onCancel}
-                >
-                  <ThemedText className="text-sm font-bold text-black">
-                    {cancelText}
-                  </ThemedText>
-                </ThemedView>
-              )}
-              {onConfirm && (
-                <ThemedView
-                  className={`py-2 px-4 rounded-full ${getColorByType()}`}
-                  onTouchEnd={onConfirm}
-                >
-                  <ThemedText className="text-sm font-bold text-white">
-                    {confirmText}
-                  </ThemedText>
-                </ThemedView>
-              )}
+          {showContactInput && (
+            <StyledView className="mb-4">
+              <TextInput
+                className="border border-gray-300 rounded-lg p-2 mb-2"
+                placeholder="Enter contact number"
+                keyboardType="phone-pad"
+                value={inputContactNumber}
+                onChangeText={setInputContactNumber}
+              />
             </StyledView>
+          )}
+
+          <StyledView className="flex-row justify-end gap-2">
+            {onCancel && (
+              <TouchableOpacity
+                onPress={onCancel}
+                className="px-4 py-2 rounded-lg bg-gray-200"
+              >
+                <ThemedText>{cancelText}</ThemedText>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={() => {
+                if (showContactInput) {
+                  (onConfirm as (contactNumber: string) => void)(
+                    inputContactNumber
+                  );
+                } else {
+                  (onConfirm as () => void)();
+                }
+              }}
+              className={`px-4 py-2 rounded-lg ${
+                type === "success"
+                  ? "bg-green-500"
+                  : type === "warning"
+                  ? "bg-yellow-500"
+                  : type === "error"
+                  ? "bg-red-500"
+                  : "bg-[#6F13F5]"
+              }`}
+            >
+              <ThemedText className="text-white">{confirmText}</ThemedText>
+            </TouchableOpacity>
           </StyledView>
-        </ThemedView>
+        </StyledView>
       </StyledView>
     </Modal>
   );
@@ -453,15 +459,17 @@ export default function DashboardScreen() {
     });
   };
 
-  // Update handleSubmitAllBets to handle JSON safely and close the alert
-  const handleSubmitAllBets = async () => {
+  // Add contact number state
+  const [contactNumber, setContactNumber] = useState<string>("");
+
+  // Update handleSubmitAllBets to include contact number
+  const handleSubmitAllBets = async (inputContactNumber: string) => {
     try {
       if (!allBets || allBets.length === 0) {
         Alert.alert("Error", "No bets to submit");
         return;
       }
 
-      // Get current user
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -470,16 +478,21 @@ export default function DashboardScreen() {
         return;
       }
 
-      // Add user_id and bet_date to each bet
+      // Add user_id, bet_date, and contact_number to each bet
       const betsToInsert = allBets.map((bet) => ({
         ...bet,
         user_id: session.user.id,
         bet_date: new Date().toISOString().split("T")[0],
+        contact_number: inputContactNumber,
       }));
 
-      // Insert all bets
+      console.log("Bets to insert:", betsToInsert); // Add this for debugging
+
       const { error } = await supabase.from("bets").insert(betsToInsert);
-      if (error) throw error;
+      if (error) {
+        console.error("Insert error:", error); // Add this for debugging
+        throw error;
+      }
 
       // Close the alert modal first
       setAlertConfig((prev) => ({ ...prev, isVisible: false }));
@@ -487,6 +500,7 @@ export default function DashboardScreen() {
       // Reset states immediately
       setAllBets([]);
       setTotalBetValue(0);
+      setContactNumber(""); // Reset contact number
 
       // Clear router params to reset form state
       router.setParams({
@@ -664,7 +678,6 @@ export default function DashboardScreen() {
       return;
     }
 
-    const bets = JSON.stringify(allBets);
     setAlertConfig({
       isVisible: true,
       title: "Confirm Submission",
@@ -672,10 +685,21 @@ export default function DashboardScreen() {
         allBets.length
       } bet(s) with total amount of ₱${totalBetValue.toFixed(2)}?`,
       type: "info",
-      onConfirm: handleSubmitAllBets,
-      onCancel: () => setAlertConfig((prev) => ({ ...prev, isVisible: false })),
+      //@ts-ignore
+      onConfirm: (inputContactNumber: string) => {
+        if (!inputContactNumber) {
+          Alert.alert("Error", "Please enter a contact number");
+          return;
+        }
+        handleSubmitAllBets(inputContactNumber);
+      },
+      onCancel: () => {
+        setContactNumber(""); // Reset contact number on cancel
+        setAlertConfig((prev) => ({ ...prev, isVisible: false }));
+      },
       confirmText: "Submit",
       cancelText: "Cancel",
+      showContactInput: true,
     });
   };
 
