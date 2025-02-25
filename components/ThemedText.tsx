@@ -1,6 +1,31 @@
 import React from "react";
-import { Text, TextProps } from "react-native";
+import { Text } from "react-native";
+import { styled } from "nativewind";
 
-export function ThemedText(props: TextProps) {
-  return <Text {...props} />;
+interface ThemedTextProps {
+  className?: string;
+  children?: React.ReactNode;
+  style?: any;
+  numberOfLines?: number;
+}
+
+const StyledText = styled(Text);
+
+export function ThemedText({
+  children,
+  className,
+  style,
+  numberOfLines,
+  ...props
+}: ThemedTextProps) {
+  return (
+    <StyledText
+      className={className}
+      style={style}
+      numberOfLines={numberOfLines}
+      {...props}
+    >
+      {children}
+    </StyledText>
+  );
 }

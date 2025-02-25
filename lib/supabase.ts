@@ -487,3 +487,90 @@ export async function assignPercentage(data: {
   if (error) throw error;
   return result;
 }
+
+// Update the checkBetLimit function
+export async function checkBetLimit(
+  combination: string,
+  amount: number,
+  gameTitle: string,
+  betDate: string
+) {
+  try {
+    // Check auth status
+    const {
+      data: { session },
+      error: authError,
+    } = await supabase.auth.getSession();
+    console.log("Auth check:", {
+      isAuthenticated: !!session,
+      userId: session?.user?.id,
+      error: authError,
+    });
+
+    // First, let's verify the table contents with a raw query
+    const { data: rawData, error: rawError } = await supabase.rpc(
+      "debug_bet_limits",
+      {
+        debug_date: betDate,
+      }
+    );
+
+    console.log("Raw table data:", {
+      data: rawData,
+      error: rawError,
+    });
+
+    const formattedCombination = combination.padStart(
+      gameTitle === "LAST TWO" ? 2 : 3,
+      "0"
+    );
+
+    // Try direct table access with detailed error logging
+    const { data: allLimits, error: queryError } = await supabase
+      .from("bet_limits")
+      .select("*");
+
+    console.log("Direct table query:", {
+      success: !queryError,
+      error: queryError,
+      count: allLimits?.length || 0,
+      data: allLimits,
+    });
+
+    // Try the exact match query
+    const { data: exactMatch, error: exactError } = await supabase
+      .from("bet_limits")
+      .select("*")
+      .eq("bet_date", betDate)
+      .eq("game_title", gameTitle)
+      .eq("number", formattedCombination);
+
+    console.log("Exact match query:", {
+      success: !exactError,
+      error: exactError,
+      found: exactMatch?.length > 0,
+      match: exactMatch?.[0],
+    });
+
+    if (exactMatch && exactMatch.length > 0) {
+      const limit = exactMatch[0];
+      const isAllowed = amount <= limit.limit_amount;
+
+      console.log("Limit check:", {
+        betAmount: amount,
+        limitAmount: limit.limit_amount,
+        isAllowed,
+      });
+
+      return {
+        allowed: isAllowed,
+        limitAmount: limit.limit_amount,
+      };
+    }
+
+    return { allowed: true };
+  } catch (error) {
+    console.error("Error in checkBetLimit:", error);
+    return { allowed: true };
+  }
+}

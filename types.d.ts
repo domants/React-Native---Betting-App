@@ -20,6 +20,7 @@ declare module "react-native" {
     className?: string;
     children?: React.ReactNode;
     style?: any;
+    numberOfLines?: number;
   }
 
   export interface TextInputProps extends ViewProps {
@@ -34,6 +35,14 @@ declare module "react-native" {
 
   export interface ScrollViewProps extends ViewProps {
     contentContainerStyle?: any;
+    showsVerticalScrollIndicator?: boolean;
+  }
+
+  export interface ModalProps {
+    animationType?: "none" | "slide" | "fade";
+    transparent?: boolean;
+    visible?: boolean;
+    onRequestClose?: () => void;
   }
 
   export const View: ComponentType<ViewProps>;
@@ -58,6 +67,7 @@ declare module "react-native" {
   export const StyleSheet: {
     create: <T extends Record<string, any>>(styles: T) => T;
   };
+  export const Modal: ComponentType<ModalProps>;
 }
 
 export interface User {

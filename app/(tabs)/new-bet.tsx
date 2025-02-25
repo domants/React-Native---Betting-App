@@ -13,7 +13,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
-import { supabase } from "@/lib/supabase";
+import { supabase, checkBetLimit } from "@/lib/supabase";
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
 
@@ -172,10 +172,73 @@ export default function NewBetScreen() {
     });
   };
 
-  const handleSubmitBet = () => {
+  const validateBetLimits = async (bets: BetRow[]) => {
+    const today = new Date();
+    const currentDate = today.toISOString().slice(0, 10);
+
+    console.log("Starting bet limit validation:", {
+      date: currentDate,
+      totalBets: bets.length,
+      gameTitle,
+    });
+
+    for (const bet of bets) {
+      if (!bet.combination || !bet.amount) continue;
+
+      const formattedCombination = bet.combination.padStart(
+        gameTitle?.includes("LAST TWO") ? 2 : 3,
+        "0"
+      );
+
+      console.log("Processing bet:", {
+        original: bet.combination,
+        formatted: formattedCombination,
+        amount: parseFloat(bet.amount),
+        gameTitle,
+        currentDate,
+        rawAmount: bet.amount,
+      });
+
+      const { allowed, limitAmount } = await checkBetLimit(
+        formattedCombination,
+        parseFloat(bet.amount),
+        gameTitle,
+        currentDate
+      );
+
+      console.log("Limit check response:", {
+        allowed,
+        limitAmount,
+        combination: formattedCombination,
+      });
+
+      if (!allowed && limitAmount !== undefined) {
+        Alert.alert(
+          "Bet Limit Exceeded",
+          `Combination ${formattedCombination} has a limit of ₱${limitAmount}. Your bet amount (₱${bet.amount}) exceeds this limit.`,
+          [{ text: "OK" }]
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleSubmitBet = async () => {
     try {
       if (!betRows.some((row) => row.combination && row.amount)) {
         Alert.alert("Error", "Please add at least one bet");
+        return;
+      }
+
+      setIsSubmitting(true);
+
+      // Filter out empty rows and check limits
+      const validBets = betRows.filter((row) => row.combination && row.amount);
+      const limitsValid = await validateBetLimits(validBets);
+
+      if (!limitsValid) {
+        setIsSubmitting(false);
         return;
       }
 
@@ -186,15 +249,13 @@ export default function NewBetScreen() {
       allBets = allBets.filter((bet) => bet.game_title !== gameTitle);
 
       // Add new bets
-      const newBets = betRows
-        .filter((row) => row.combination && row.amount)
-        .map((row) => ({
-          combination: row.combination,
-          amount: Number(row.amount),
-          is_rumble: row.isRambol,
-          game_title: gameTitle,
-          draw_time: eventTime,
-        }));
+      const newBets = validBets.map((row) => ({
+        combination: row.combination,
+        amount: Number(row.amount),
+        is_rumble: row.isRambol,
+        game_title: gameTitle,
+        draw_time: eventTime,
+      }));
 
       // Combine bets
       allBets = [...allBets, ...newBets];
@@ -212,8 +273,10 @@ export default function NewBetScreen() {
       });
       router.back();
     } catch (error) {
-      console.error("Error formatting bets:", error);
-      Alert.alert("Error", "Failed to prepare bets. Please try again.");
+      console.error("Error submitting bet:", error);
+      Alert.alert("Error", "Failed to submit bet. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -264,15 +327,14 @@ export default function NewBetScreen() {
           {betRows.map((row, index) => (
             <StyledView key={row.id} className="flex-row items-center mb-2">
               <ThemedText className="w-8">{index + 1}</ThemedText>
-              <StyledView className="flex-1 flex-row items-center">
+              <StyledView className="flex-1 flex-row items-center mr-2">
                 <TextInput
-                  className="flex-1 h-12 px-4 mr-2 border border-gray-200 rounded-lg"
+                  className="flex-1 h-12 px-4 border border-gray-200 rounded-lg"
                   value={row.combination}
                   onChangeText={(value: string) => {
                     // Only allow numbers and limit based on game type
                     const numericValue = value.replace(/[^0-9]/g, "");
                     if (gameTitle?.includes("LAST TWO")) {
-                      // For LAST TWO: limit to 2 digits and max value of 99
                       if (
                         numericValue.length <= 2 &&
                         parseInt(numericValue || "0") <= 99
@@ -280,7 +342,6 @@ export default function NewBetScreen() {
                         handleCombinationChange(row.id, numericValue);
                       }
                     } else {
-                      // For SWERTRES: limit to 3 digits
                       if (numericValue.length <= 3) {
                         handleCombinationChange(row.id, numericValue);
                       }
@@ -315,8 +376,10 @@ export default function NewBetScreen() {
                   </ThemedText>
                 )}
               </StyledView>
+
+              {/* Amount input with fixed width */}
               <TextInput
-                className="w-20 h-12 px-4 mr-2 border border-gray-200 rounded-lg"
+                className="w-[25%] h-12 px-4 border border-gray-200 rounded-lg mr-2"
                 value={row.amount}
                 onChangeText={(value: string) =>
                   handleAmountChange(row.id, value)
@@ -324,6 +387,7 @@ export default function NewBetScreen() {
                 keyboardType="numeric"
                 placeholder="Amount"
               />
+
               <TouchableOpacity onPress={() => removeRow(row.id)}>
                 <MaterialIcons
                   name="remove-circle-outline"

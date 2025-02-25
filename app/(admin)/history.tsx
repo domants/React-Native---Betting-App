@@ -1,14 +1,10 @@
-//@ts-ignore
 import React, { useEffect, useState } from "react";
 //@ts-ignore
-import {
-  View,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  TextInput,
-  Modal,
-} from "react-native";
+import { View, TouchableOpacity, Alert, TextInput } from "react-native";
+import { Modal } from "react-native";
+
+//@ts-ignore
+import { ScrollView as RNScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -23,6 +19,7 @@ import { ThemedView } from "@/components/ThemedView";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
+const StyledScrollView = styled(RNScrollView);
 
 type BetFilter = "all" | "last_two" | "swertres" | "wins" | "losses";
 
@@ -291,34 +288,48 @@ export default function HistoryScreen() {
         </StyledView>
 
         {/* Winnings List as Table */}
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {filteredWinnings.map((winning) => (
-            <StyledView
-              key={winning.id}
-              className="flex-row py-3 border-b border-gray-100 items-center"
-            >
-              <ThemedText className="w-[25%]" numberOfLines={1}>
-                {winning.ticket_number}
-              </ThemedText>
-              <ThemedText className="w-[30%]" numberOfLines={1}>
-                {winning.users?.name}
-              </ThemedText>
-              <ThemedText className="w-[25%] text-right">
-                ₱{winning.bet_amount}
-              </ThemedText>
-              <StyledView className="w-[20%] items-center">
-                <TouchableOpacity
-                  className="bg-[#6F13F5] px-3 py-1 rounded-lg"
-                  onPress={() => setDetailsModal({ isVisible: true, winning })}
-                >
-                  <ThemedText className="text-white text-sm">
-                    Details
-                  </ThemedText>
-                </TouchableOpacity>
+        <StyledScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredWinnings.length > 0 ? (
+            filteredWinnings.map((winning) => (
+              <StyledView
+                key={winning.id}
+                className="flex-row py-3 border-b border-gray-100 items-center"
+              >
+                <ThemedText className="w-[25%]" numberOfLines={1}>
+                  {winning.ticket_number}
+                </ThemedText>
+                <ThemedText className="w-[30%]" numberOfLines={1}>
+                  {winning.users?.name}
+                </ThemedText>
+                <ThemedText className="w-[25%] text-right">
+                  ₱{winning.bet_amount}
+                </ThemedText>
+                <StyledView className="w-[20%] items-center">
+                  <TouchableOpacity
+                    className="bg-[#6F13F5] px-3 py-1 rounded-lg"
+                    onPress={() =>
+                      setDetailsModal({ isVisible: true, winning })
+                    }
+                  >
+                    <ThemedText className="text-white text-sm">
+                      Details
+                    </ThemedText>
+                  </TouchableOpacity>
+                </StyledView>
               </StyledView>
+            ))
+          ) : (
+            <StyledView className="flex-1 justify-center items-center py-8">
+              <MaterialIcons name="emoji-events" size={48} color="#ccc" />
+              <ThemedText className="text-gray-400 mt-4 text-center">
+                No winning history found for this date
+              </ThemedText>
             </StyledView>
-          ))}
-        </ScrollView>
+          )}
+        </StyledScrollView>
 
         {/* Dropdown Menu (Absolute Position) */}
         {showGameDropdown && (
