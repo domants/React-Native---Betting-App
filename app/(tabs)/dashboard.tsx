@@ -30,6 +30,9 @@ const StyledSafeAreaView = styled(SafeAreaView);
 //cut off time before the event - in mnts
 const CUTOFF_BEFORE_EVENT = 20;
 
+//debug flag for testing purposes
+const DEBUG_MODE = false; // Set to true to disable time restrictions
+
 interface FinancialCardProps {
   title: string;
   value: string;
@@ -145,12 +148,6 @@ function GameItem({
   );
 }
 
-function getCurrentPhTime() {
-  const now = new Date();
-  // For testing, let's return a fixed time that's before 9PM
-  return "7:00 PM"; // This will make 9PM event available
-}
-
 function parseTime(timeStr: string): number {
   try {
     // Remove any extra spaces and ensure proper format
@@ -175,11 +172,24 @@ function parseTime(timeStr: string): number {
   }
 }
 
-function isEventDisabled(tabName: string): boolean {
-  // For testing, return false to enable all events
-  return false;
+function getCurrentPhTime() {
+  if (DEBUG_MODE) {
+    return "7:00 PM"; // Debug time that allows all events
+  }
+  const now = new Date();
+  const options = {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Manila",
+  };
+  return now.toLocaleTimeString("en-US", options as Intl.DateTimeFormatOptions);
+}
 
-  /* Original code to restore later:
+function isEventDisabled(tabName: string): boolean {
+  if (DEBUG_MODE) {
+    return false; // Debug mode: enable all events
+  }
   const currentTime = getCurrentPhTime();
   const currentMinutes = parseTime(currentTime);
 
@@ -188,7 +198,6 @@ function isEventDisabled(tabName: string): boolean {
     const eventMinutes = parseTime(event.time);
     return currentMinutes + CUTOFF_BEFORE_EVENT >= eventMinutes;
   });
-  */
 }
 
 const getEventTime = (tab: string) => {
