@@ -477,7 +477,8 @@ export default function AssignPercentageScreen() {
                 maxLength={3}
               />
               <ThemedText className="text-sm text-gray-500 mt-1">
-                Available: {currentAllocation.l2.remainingPercentage}%
+                L2 Available Percentage:{" "}
+                {currentAllocation.l2.remainingPercentage}%
               </ThemedText>
             </StyledView>
 
@@ -491,6 +492,9 @@ export default function AssignPercentageScreen() {
                 onChangeText={setL2Winnings}
                 keyboardType="numeric"
               />
+              <ThemedText className="text-sm text-gray-500 mt-1">
+                L2 Available Winnings: ₱{currentAllocation.l2.remainingWinnings}
+              </ThemedText>
             </StyledView>
 
             {/* 3D Percentage */}
@@ -504,6 +508,10 @@ export default function AssignPercentageScreen() {
                 keyboardType="numeric"
                 maxLength={3}
               />
+              <ThemedText className="text-sm text-gray-500 mt-1">
+                3D Available Percentage:{" "}
+                {currentAllocation.d3.remainingPercentage}%
+              </ThemedText>
             </StyledView>
 
             {/* 3D Winnings */}
@@ -516,6 +524,9 @@ export default function AssignPercentageScreen() {
                 onChangeText={setD3Winnings}
                 keyboardType="numeric"
               />
+              <ThemedText className="text-sm text-gray-500 mt-1">
+                3D Available Winnings: ₱{currentAllocation.d3.remainingWinnings}
+              </ThemedText>
             </StyledView>
 
             {/* Save Button */}
