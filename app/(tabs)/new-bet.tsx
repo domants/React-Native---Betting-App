@@ -13,9 +13,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
-import { supabase, checkBetLimit } from "@/lib/supabase";
+import { checkBetLimit, createBet } from "@/lib/supabase";
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
+import { generatePermutations } from "@/lib/utils/permutations";
+import { supabase } from "@/lib/supabase";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -37,6 +39,10 @@ interface Bet {
   is_rumble: boolean;
   game_title: string;
   draw_time: string;
+}
+
+function formatDate(date: Date): string {
+  return date.toISOString().split("T")[0];
 }
 
 export default function NewBetScreen() {
@@ -213,12 +219,23 @@ export default function NewBetScreen() {
       });
 
       if (!allowed && limitAmount !== undefined) {
-        Alert.alert(
-          "Bet Limit Exceeded",
-          `Combination ${formattedCombination} has a limit of ₱${limitAmount}. Your bet amount (₱${bet.amount}) exceeds this limit.`,
-          [{ text: "OK" }]
-        );
-        return false;
+        // Return a Promise that resolves when the alert is acknowledged
+        return new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Bet Limit Exceeded",
+            `Combination ${formattedCombination} has a limit of ₱${limitAmount}. Your bet amount (₱${bet.amount}) exceeds this limit.`,
+            [
+              {
+                text: "OK",
+                onPress: () => {
+                  console.log("User acknowledged limit exceeded");
+                  resolve(false);
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+        });
       }
     }
     return true;
@@ -226,38 +243,95 @@ export default function NewBetScreen() {
 
   const handleSubmitBet = async () => {
     try {
-      if (!betRows.some((row) => row.combination && row.amount)) {
-        Alert.alert("Error", "Please add at least one bet");
-        return;
-      }
-
       setIsSubmitting(true);
 
-      // Filter out empty rows and check limits
-      const validBets = betRows.filter((row) => row.combination && row.amount);
-      const limitsValid = await validateBetLimits(validBets);
+      // Validate all rows
+      for (const row of betRows) {
+        if (!row.combination || !row.amount) {
+          Alert.alert("Error", "Please fill in all fields");
+          setIsSubmitting(false);
+          return;
+        }
 
-      if (!limitsValid) {
-        setIsSubmitting(false);
-        return;
+        // Validate combination length
+        const requiredLength = gameTitle?.includes("LAST TWO") ? 2 : 3;
+        if (row.combination.length !== requiredLength) {
+          Alert.alert(
+            "Error",
+            `Combination must be ${requiredLength} digits for ${gameTitle}`
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Check for triple numbers when rambol is selected
+        if (row.isRambol && gameTitle === "SWERTRES") {
+          const isTriple =
+            row.combination[0] === row.combination[1] &&
+            row.combination[1] === row.combination[2];
+
+          if (isTriple) {
+            Alert.alert(
+              "Invalid Combination",
+              "Triple numbers (e.g., 111) cannot be rambolized."
+            );
+            setIsSubmitting(false);
+            return;
+          }
+
+          // Get permutations to determine if it's a double number
+          const permutations = generatePermutations(row.combination);
+          const amountPerCombination = Number(row.amount) / permutations.length;
+
+          // Update amount based on number of permutations
+          row.amount = amountPerCombination.toString();
+        }
+
+        // Check bet limits
+        const { allowed, limitAmount } = await checkBetLimit(
+          row.combination,
+          Number(row.amount),
+          gameTitle || "",
+          formatDate(new Date())
+        );
+
+        if (!allowed) {
+          Alert.alert(
+            "Limit Exceeded",
+            `Maximum bet for ${row.combination} is ₱${limitAmount}`
+          );
+          setIsSubmitting(false);
+          return;
+        }
       }
 
-      // Get existing bets
+      // Create the bets array for the dashboard (without saving to database)
+      const newBets = betRows.map((row) => {
+        if (row.isRambol && gameTitle === "SWERTRES") {
+          const permutations = generatePermutations(row.combination);
+          const amountPerCombination = Number(row.amount) / permutations.length;
+
+          return {
+            combination: row.combination,
+            amount: Number(row.amount) * permutations.length, // Store total amount
+            is_rumble: row.isRambol,
+            game_title: gameTitle,
+            draw_time: eventTime,
+            permutations: permutations, // Store permutations for reference
+          };
+        }
+
+        return {
+          combination: row.combination,
+          amount: Number(row.amount),
+          is_rumble: row.isRambol,
+          game_title: gameTitle,
+          draw_time: eventTime,
+        };
+      });
+
+      // Get existing bets and update them
       let allBets: Bet[] = existingBets ? JSON.parse(existingBets) : [];
-
-      // Remove existing bets for this game
-      allBets = allBets.filter((bet) => bet.game_title !== gameTitle);
-
-      // Add new bets
-      const newBets = validBets.map((row) => ({
-        combination: row.combination,
-        amount: Number(row.amount),
-        is_rumble: row.isRambol,
-        game_title: gameTitle,
-        draw_time: eventTime,
-      }));
-
-      // Combine bets
       allBets = [...allBets, ...newBets];
 
       // Calculate total
@@ -273,37 +347,15 @@ export default function NewBetScreen() {
       });
       router.back();
     } catch (error) {
-      console.error("Error submitting bet:", error);
-      Alert.alert("Error", "Failed to submit bet. Please try again.");
+      console.error("Error validating bets:", error);
+      Alert.alert("Error", "Failed to validate bets. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleBack = () => {
-    // Get existing bets from params
-    let allBets: Bet[] = existingBets ? JSON.parse(existingBets) : [];
-
-    const newBets = betRows
-      .filter((row) => row.combination && row.amount)
-      .map((row) => ({
-        combination: row.combination,
-        amount: Number(row.amount),
-        is_rumble: row.isRambol,
-        game_title: gameTitle,
-        draw_time: eventTime,
-      }));
-
-    allBets = [...allBets, ...newBets];
-    const totalBetAmount = allBets.reduce(
-      (sum: number, bet: Bet) => sum + Number(bet.amount),
-      0
-    );
-
-    router.setParams({
-      totalBetValue: totalBetAmount.toString(),
-      betDetails: JSON.stringify(allBets),
-    });
+    // If there are unsaved changes, maybe show a confirmation dialog
     router.back();
   };
 

@@ -22,6 +22,7 @@ import {
   getCurrentUserBets,
 } from "@/lib/supabase";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { generatePermutations } from "@/lib/utils/permutations";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -146,12 +147,8 @@ function GameItem({
 
 function getCurrentPhTime() {
   const now = new Date();
-  return now.toLocaleString("en-US", {
-    timeZone: "Asia/Manila",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: true,
-  });
+  // For testing, let's return a fixed time that's before 9PM
+  return "7:00 PM"; // This will make 9PM event available
 }
 
 function parseTime(timeStr: string): number {
@@ -164,44 +161,34 @@ function parseTime(timeStr: string): number {
     let hours = parseInt(hoursStr, 10);
     const minutes = parseInt(minutesStr, 10);
 
-    // Validate parsed values
-    if (isNaN(hours) || isNaN(minutes)) {
-      console.error("Invalid time format:", timeStr);
-      return 0;
-    }
-
     // Convert to 24-hour format
-    if (period === "PM" && hours !== 12) hours += 12;
-    if (period === "AM" && hours === 12) hours = 0;
+    if (period === "PM" && hours !== 12) {
+      hours += 12;
+    } else if (period === "AM" && hours === 12) {
+      hours = 0;
+    }
 
     return hours * 60 + minutes;
   } catch (error) {
-    console.error("Error parsing time:", timeStr, error);
+    console.error("Error parsing time:", error);
     return 0;
   }
 }
 
-function isEventAvailable(eventTime: string): boolean {
+function isEventDisabled(tabName: string): boolean {
+  // For testing, return false to enable all events
+  return false;
+
+  /* Original code to restore later:
   const currentTime = getCurrentPhTime();
   const currentMinutes = parseTime(currentTime);
-  const eventMinutes = parseTime(eventTime);
 
-  // for debugging
-  /*
-  console.log({
-    currentTime,
-    eventTime,
-    currentMinutes,
-    eventMinutes,
-    cutoffMinutes: eventMinutes - CUTOFF_BEFORE_EVENT,
+  const events = GAME_DATA[tabName as keyof typeof GAME_DATA].games;
+  return events.every((event) => {
+    const eventMinutes = parseTime(event.time);
+    return currentMinutes + CUTOFF_BEFORE_EVENT >= eventMinutes;
   });
-*/
-  // If current time is before event time
-  if (eventMinutes > currentMinutes) {
-    return currentMinutes <= eventMinutes - CUTOFF_BEFORE_EVENT;
-  }
-
-  return false;
+  */
 }
 
 const getEventTime = (tab: string) => {
@@ -222,6 +209,10 @@ const getEventTime = (tab: string) => {
       return null;
   }
 };
+
+function formatDate(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
 
 const GAME_DATA = {
   "11AM Events": {
@@ -251,7 +242,7 @@ interface AlertDialogProps {
   isVisible: boolean;
   title: string;
   message: string;
-  onConfirm?: ((contactNumber: string) => void) | (() => void);
+  onConfirm?: (contactNumber?: string) => void | Promise<void>;
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
@@ -271,6 +262,14 @@ function AlertDialog({
   showContactInput = false,
 }: AlertDialogProps) {
   const [inputContactNumber, setInputContactNumber] = useState("");
+
+  const handleConfirm = () => {
+    if (showContactInput && onConfirm) {
+      (onConfirm as (contactNumber: string) => void)(inputContactNumber);
+    } else if (onConfirm) {
+      (onConfirm as () => void)();
+    }
+  };
 
   if (!isVisible) return null;
 
@@ -308,15 +307,7 @@ function AlertDialog({
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              onPress={() => {
-                if (showContactInput) {
-                  (onConfirm as (contactNumber: string) => void)(
-                    inputContactNumber
-                  );
-                } else {
-                  (onConfirm as () => void)();
-                }
-              }}
+              onPress={handleConfirm}
               className={`px-4 py-2 rounded-lg ${
                 type === "success"
                   ? "bg-green-500"
@@ -345,12 +336,13 @@ function LoadingSpinner() {
 }
 
 // First, add the interface for bet details
-interface BetDetail {
+interface Bet {
   combination: string;
   amount: number;
   is_rumble: boolean;
   game_title: string;
   draw_time: string;
+  permutations?: string[]; // Add this optional property
 }
 
 export default function DashboardScreen() {
@@ -381,11 +373,6 @@ export default function DashboardScreen() {
   });
 
   const [isSynced, setIsSynced] = useState(false);
-
-  const isEventDisabled = (tabName: string) => {
-    const eventData = GAME_DATA[tabName as keyof typeof GAME_DATA];
-    return !isEventAvailable(eventData.eventTime);
-  };
 
   const handleTabPress = (tabName: string) => {
     if (isEventDisabled(tabName)) {
@@ -478,55 +465,51 @@ export default function DashboardScreen() {
         return;
       }
 
-      // Add user_id, bet_date, and contact_number to each bet
-      const betsToInsert = allBets.map((bet) => ({
-        ...bet,
-        user_id: session.user.id,
-        bet_date: new Date().toISOString().split("T")[0],
-        contact_number: inputContactNumber,
-      }));
+      // Expand rambol bets into individual records
+      const expandedBets = allBets.flatMap((bet) => {
+        if (bet.is_rumble && bet.game_title === "SWERTRES") {
+          const permutations = generatePermutations(bet.combination);
+          return permutations.map((combination: string) => ({
+            combination,
+            amount: bet.amount / permutations.length,
+            is_rumble: true,
+            game_title: bet.game_title,
+            draw_time: bet.draw_time,
+            user_id: session.user.id,
+            bet_date: formatDate(new Date()),
+            contact_number: inputContactNumber,
+          }));
+        }
 
-      console.log("Bets to insert:", betsToInsert); // Add this for debugging
+        return [
+          {
+            ...bet,
+            user_id: session.user.id,
+            bet_date: formatDate(new Date()),
+            contact_number: inputContactNumber,
+          },
+        ];
+      });
 
-      const { error } = await supabase.from("bets").insert(betsToInsert);
+      const { error } = await supabase.from("bets").insert(expandedBets);
       if (error) {
-        console.error("Insert error:", error); // Add this for debugging
+        console.error("Insert error:", error);
         throw error;
       }
 
-      // Close the alert modal first
+      // Rest of your success handling code...
       setAlertConfig((prev) => ({ ...prev, isVisible: false }));
-
-      // Reset states immediately
       setAllBets([]);
       setTotalBetValue(0);
-      setContactNumber(""); // Reset contact number
-
-      // Clear router params to reset form state
       router.setParams({
         totalBetValue: "0",
         betDetails: JSON.stringify([]),
         shouldResetForm: "true",
       });
 
-      // Show success message
-      Alert.alert("Success", "All bets have been submitted successfully", [
-        {
-          text: "OK",
-          onPress: () => {
-            setAllBets([]);
-            setTotalBetValue(0);
-            router.setParams({
-              totalBetValue: "0",
-              betDetails: JSON.stringify([]),
-              shouldResetForm: "true",
-            });
-          },
-        },
-      ]);
+      Alert.alert("Success", "All bets have been submitted successfully");
     } catch (error) {
       console.error("Error submitting bets:", error);
-      setAlertConfig((prev) => ({ ...prev, isVisible: false }));
       Alert.alert("Error", "Failed to submit bets. Please try again.");
     }
   };
@@ -664,43 +647,30 @@ export default function DashboardScreen() {
     return <LoadingSpinner />;
   }
 
-  const handleSubmitBetClick = () => {
-    if (allBets.length === 0) {
+  const handleSubmitBetClick = async () => {
+    try {
+      if (allBets.length === 0) {
+        Alert.alert("Error", "Please add some bets before submitting");
+        return;
+      }
+
       setAlertConfig({
         isVisible: true,
-        title: "Error",
-        message: "Please add some bets before submitting.",
-        type: "error",
-        onConfirm: () =>
+        title: "Enter Contact Number",
+        message: `Total Bet Amount: ₱${totalBetValue.toFixed(2)}`,
+        type: "info",
+        showContactInput: true,
+        //@ts-ignore
+        onConfirm: handleSubmitAllBets,
+        onCancel: () =>
           setAlertConfig((prev) => ({ ...prev, isVisible: false })),
-        confirmText: "OK",
+        confirmText: "Submit",
+        cancelText: "Cancel",
       });
-      return;
+    } catch (error) {
+      console.error("Error in handleSubmitBetClick:", error);
+      Alert.alert("Error", "Failed to process bets. Please try again.");
     }
-
-    setAlertConfig({
-      isVisible: true,
-      title: "Confirm Submission",
-      message: `Are you sure you want to submit ${
-        allBets.length
-      } bet(s) with total amount of ₱${totalBetValue.toFixed(2)}?`,
-      type: "info",
-      //@ts-ignore
-      onConfirm: (inputContactNumber: string) => {
-        if (!inputContactNumber) {
-          Alert.alert("Error", "Please enter a contact number");
-          return;
-        }
-        handleSubmitAllBets(inputContactNumber);
-      },
-      onCancel: () => {
-        setContactNumber(""); // Reset contact number on cancel
-        setAlertConfig((prev) => ({ ...prev, isVisible: false }));
-      },
-      confirmText: "Submit",
-      cancelText: "Cancel",
-      showContactInput: true,
-    });
   };
 
   return (

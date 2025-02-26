@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { router } from "expo-router";
 import * as crypto from "expo-crypto";
 import NetInfo from "@react-native-community/netinfo";
+import { generatePermutations } from "./utils/permutations";
 
 // Polyfill for crypto.getRandomValues
 (globalThis as any).crypto = {
@@ -129,109 +130,54 @@ function convertTimeToTimestamp(timeStr: string): string {
 }
 
 // Example function to create a new bet
-export async function createBet(
-  gameTitle: string,
-  eventTime: string,
-  betDetails: Array<{
-    combination: string;
-    amount: number;
-    is_rambol: boolean;
-  }>
-) {
+export async function createBet(betData: {
+  user_id: string;
+  combination: string;
+  amount: number;
+  is_rumble: boolean;
+  game_title: string;
+  draw_time: string;
+  bet_date: string;
+}) {
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    if (betData.is_rumble && betData.game_title === "SWERTRES") {
+      // Generate all permutations
+      const permutations = generatePermutations(betData.combination);
+      const amountPerCombination = betData.amount / permutations.length;
 
-    if (!user) throw new Error("User not authenticated");
+      // Create an array of bet records
+      const betRecords = permutations.map((combination) => ({
+        user_id: betData.user_id,
+        combination,
+        amount: amountPerCombination,
+        is_rumble: true,
+        game_title: betData.game_title,
+        draw_time: betData.draw_time,
+        bet_date: betData.bet_date,
+        original_combination: betData.combination, // Add this to track original input
+      }));
 
-    console.log("Creating bet for user:", user.id);
-    console.log("Bet details:", { gameTitle, eventTime, betDetails });
+      // Insert all permutations
+      const { data, error } = await supabase
+        .from("bets")
+        .insert(betRecords)
+        .select();
 
-    // Convert the time string to a proper timestamp
-    const timestamp = convertTimeToTimestamp(eventTime);
-    console.log("Converted timestamp:", timestamp);
+      if (error) throw error;
+      return { data, error: null };
+    } else {
+      // Regular non-rumble bet
+      const { data, error } = await supabase
+        .from("bets")
+        .insert([betData])
+        .select();
 
-    // Create the bet data object
-    const betData = {
-      user_id: user.id,
-      game_title: gameTitle,
-      event_time: timestamp, // Use the converted timestamp
-      total_amount: betDetails.reduce((sum, detail) => sum + detail.amount, 0),
-      status: "pending",
-    };
-
-    console.log("Inserting bet with data:", betData);
-
-    // Start a transaction
-    const { data: userBet, error: betError } = await supabase
-      .from("user_bets")
-      .insert(betData)
-      .select()
-      .single();
-
-    if (betError) {
-      console.error("Error creating user_bet:", {
-        error: betError,
-        code: betError.code,
-        message: betError.message,
-        details: betError.details,
-        hint: betError.hint,
-      });
-      throw new Error(`Failed to create bet: ${betError.message}`);
+      if (error) throw error;
+      return { data, error: null };
     }
-
-    if (!userBet) {
-      throw new Error("Bet was created but no data was returned");
-    }
-
-    console.log("Created user_bet:", userBet);
-
-    // Prepare bet details data
-    const betDetailsData = betDetails.map((detail) => ({
-      user_bet_id: userBet.id,
-      combination: detail.combination,
-      amount: Number(detail.amount),
-      is_rambol: detail.is_rambol ?? false,
-    }));
-
-    // Add validation before insert
-    if (
-      betDetailsData.some(
-        (detail) => detail.is_rambol === null || detail.is_rambol === undefined
-      )
-    ) {
-      throw new Error("Invalid bet details: is_rambol must be specified");
-    }
-
-    console.log("Inserting bet details:", betDetailsData);
-
-    // Insert bet details
-    const { data: details, error: detailsError } = await supabase
-      .from("bet_details")
-      .insert(betDetailsData)
-      .select();
-
-    if (detailsError) {
-      console.error("Error creating bet_details:", {
-        error: detailsError,
-        code: detailsError.code,
-        message: detailsError.message,
-        details: detailsError.details,
-        hint: detailsError.hint,
-      });
-      throw new Error(`Failed to create bet details: ${detailsError.message}`);
-    }
-
-    console.log("Created bet_details:", details);
-    return userBet;
   } catch (error) {
-    console.error("Detailed error:", {
-      error,
-      message: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-    throw error;
+    console.error("Error in createBet:", error);
+    return { data: null, error };
   }
 }
 
@@ -496,78 +442,52 @@ export async function checkBetLimit(
   betDate: string
 ) {
   try {
-    // Check auth status
-    const {
-      data: { session },
-      error: authError,
-    } = await supabase.auth.getSession();
-    console.log("Auth check:", {
-      isAuthenticated: !!session,
-      userId: session?.user?.id,
-      error: authError,
-    });
-
-    // First, let's verify the table contents with a raw query
-    const { data: rawData, error: rawError } = await supabase.rpc(
-      "debug_bet_limits",
-      {
-        debug_date: betDate,
-      }
-    );
-
-    console.log("Raw table data:", {
-      data: rawData,
-      error: rawError,
-    });
-
     const formattedCombination = combination.padStart(
       gameTitle === "LAST TWO" ? 2 : 3,
       "0"
     );
 
-    // Try direct table access with detailed error logging
-    const { data: allLimits, error: queryError } = await supabase
-      .from("bet_limits")
-      .select("*");
-
-    console.log("Direct table query:", {
-      success: !queryError,
-      error: queryError,
-      count: allLimits?.length || 0,
-      data: allLimits,
-    });
-
-    // Try the exact match query
-    const { data: exactMatch, error: exactError } = await supabase
+    // Get the exact limit
+    const { data: limits, error } = await supabase
       .from("bet_limits")
       .select("*")
       .eq("bet_date", betDate)
       .eq("game_title", gameTitle)
-      .eq("number", formattedCombination);
+      .eq("number", formattedCombination)
+      .single();
 
-    console.log("Exact match query:", {
-      success: !exactError,
-      error: exactError,
-      found: exactMatch?.length > 0,
-      match: exactMatch?.[0],
+    console.log("Limit check details:", {
+      searchParams: {
+        bet_date: betDate,
+        game_title: gameTitle,
+        number: formattedCombination,
+      },
+      foundLimit: limits,
+      error: error,
     });
 
-    if (exactMatch && exactMatch.length > 0) {
-      const limit = exactMatch[0];
-      const isAllowed = amount <= limit.limit_amount;
+    if (error && error.code !== "PGRST116") {
+      // Not found error code
+      console.error("Error checking limit:", error);
+      return { allowed: true }; // Default to allowed on error
+    }
 
-      console.log("Limit check:", {
+    if (limits) {
+      const isAllowed = amount <= limits.limit_amount;
+      console.log("Limit evaluation:", {
         betAmount: amount,
-        limitAmount: limit.limit_amount,
+        limitAmount: limits.limit_amount,
         isAllowed,
       });
 
       return {
         allowed: isAllowed,
-        limitAmount: limit.limit_amount,
+        limitAmount: limits.limit_amount,
       };
     }
 
+    // No limit found for this combination
+    console.log("No limit found for this combination");
     return { allowed: true };
   } catch (error) {
     console.error("Error in checkBetLimit:", error);

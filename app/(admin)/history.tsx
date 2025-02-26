@@ -1,27 +1,24 @@
 import React, { useEffect, useState } from "react";
-//@ts-ignore
-import { View, TouchableOpacity, Alert, TextInput } from "react-native";
-import { Modal } from "react-native";
-
-//@ts-ignore
-import { ScrollView as RNScrollView } from "react-native";
+import { View, TouchableOpacity, Alert, Text, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styled } from "nativewind";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { getBetHistory } from "@/lib/api/admin";
 import { ThemedText } from "@/components/ThemedText";
 import { supabase } from "@/lib/supabase";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { ThemedView } from "@/components/ThemedView";
+import { StyledScrollView } from "@/components/StyledScrollView";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
-const StyledScrollView = styled(RNScrollView);
+const StyledModal = styled(Modal);
 
 type BetFilter = "all" | "last_two" | "swertres" | "wins" | "losses";
+type GameFilter = "ALL" | "LAST TWO" | "SWERTRES";
+type GameType = "all" | "l2" | "swertres";
 
 export interface BetHistory {
   id: string;
@@ -189,10 +186,22 @@ export default function HistoryScreen() {
 
   // Filter winnings based on game type
   const filteredWinnings = winnings.filter((winning) => {
-    if (activeFilter === "l2") return winning.game_title === "LAST TWO";
-    if (activeFilter === "swertres") return winning.game_title === "SWERTRES";
-    return true;
+    switch (selectedGameType) {
+      case "l2":
+        return winning.game_title === "LAST TWO";
+      case "swertres":
+        return winning.game_title === "SWERTRES";
+      default:
+        return true;
+    }
   });
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setSelectedDate(selectedDate);
+    }
+  };
 
   if (isLoading || isWinningsLoading) {
     return <LoadingSpinner />;
@@ -206,11 +215,17 @@ export default function HistoryScreen() {
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
       <StyledView className="flex-1 p-4">
-        {/* Header */}
-        <StyledView className="flex-row justify-center mb-6">
-          <ThemedText className="text-2xl font-bold">
-            Winning History
-          </ThemedText>
+        {/* Header with Back Button */}
+        <StyledView className="flex-row items-center mb-6">
+          <TouchableOpacity onPress={() => router.back()} className="mr-4">
+            <MaterialIcons name="arrow-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <ThemedView className="flex-1 items-center">
+            <ThemedText className="text-xl font-bold">
+              Winning History
+            </ThemedText>
+          </ThemedView>
+          <StyledView className="w-10" /> {/* Spacer */}
         </StyledView>
 
         {/* Date Navigation */}
@@ -222,7 +237,9 @@ export default function HistoryScreen() {
               setSelectedDate(newDate);
             }}
           >
-            <MaterialIcons name="chevron-left" size={24} color="#000" />
+            <ThemedView className="flex-row items-center">
+              <MaterialIcons name="chevron-left" size={24} color="#000" />
+            </ThemedView>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -239,22 +256,13 @@ export default function HistoryScreen() {
               setSelectedDate(newDate);
             }}
           >
-            <MaterialIcons name="chevron-right" size={24} color="#000" />
+            <ThemedView className="flex-row items-center">
+              <MaterialIcons name="chevron-right" size={24} color="#000" />
+            </ThemedView>
           </TouchableOpacity>
         </StyledView>
 
-        {/* Search and Download Row */}
-        <StyledView className="flex-row items-center mb-4">
-          <TextInput
-            placeholder="Search winners..."
-            className="flex-1 bg-white px-4 py-2 rounded-lg border border-gray-200 mr-2"
-          />
-          <TouchableOpacity>
-            <MaterialIcons name="file-download" size={24} color="#000" />
-          </TouchableOpacity>
-        </StyledView>
-
-        {/* Game Type Filter Dropdown */}
+        {/* Game Type Filter Button */}
         <TouchableOpacity
           onPress={() => setShowGameDropdown(!showGameDropdown)}
           className="mb-4 bg-white p-3 rounded-lg flex-row justify-between items-center border border-gray-200"
@@ -291,6 +299,9 @@ export default function HistoryScreen() {
         <StyledScrollView
           className="flex-1"
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            flexGrow: 1,
+          }}
         >
           {filteredWinnings.length > 0 ? (
             filteredWinnings.map((winning) => (
@@ -322,18 +333,18 @@ export default function HistoryScreen() {
               </StyledView>
             ))
           ) : (
-            <StyledView className="flex-1 justify-center items-center py-8">
+            <ThemedView className="flex-1 justify-center items-center py-8">
               <MaterialIcons name="emoji-events" size={48} color="#ccc" />
               <ThemedText className="text-gray-400 mt-4 text-center">
                 No winning history found for this date
               </ThemedText>
-            </StyledView>
+            </ThemedView>
           )}
         </StyledScrollView>
 
-        {/* Dropdown Menu (Absolute Position) */}
+        {/* Dropdown Menu */}
         {showGameDropdown && (
-          <StyledView className="bg-white rounded-lg shadow absolute top-[200] left-4 right-4 z-10">
+          <ThemedView className="absolute top-[200] left-4 right-4 z-10 bg-white rounded-lg shadow-lg">
             {[
               { id: "all", label: "All Games" },
               { id: "l2", label: "Last Two" },
@@ -345,7 +356,9 @@ export default function HistoryScreen() {
                   setSelectedGameType(option.id as "all" | "l2" | "swertres");
                   setShowGameDropdown(false);
                 }}
-                className="p-4 border-b border-gray-100"
+                className={`p-4 border-b border-gray-100 ${
+                  selectedGameType === option.id ? "bg-gray-50" : ""
+                }`}
               >
                 <ThemedText
                   className={
@@ -358,7 +371,7 @@ export default function HistoryScreen() {
                 </ThemedText>
               </TouchableOpacity>
             ))}
-          </StyledView>
+          </ThemedView>
         )}
 
         {/* Date Picker Modal */}
@@ -367,16 +380,13 @@ export default function HistoryScreen() {
             value={selectedDate}
             mode="date"
             display="default"
-            onChange={(event, date) => {
-              setShowDatePicker(false);
-              if (date) setSelectedDate(date);
-            }}
+            onChange={handleDateChange}
           />
         )}
       </StyledView>
 
       {/* Details Modal */}
-      <Modal
+      <StyledModal
         animationType="fade"
         transparent={true}
         visible={detailsModal.isVisible}
@@ -435,7 +445,7 @@ export default function HistoryScreen() {
             )}
           </StyledView>
         </StyledView>
-      </Modal>
+      </StyledModal>
     </StyledSafeAreaView>
   );
 }

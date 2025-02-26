@@ -18,6 +18,9 @@ export function ThemedText({
   numberOfLines,
   ...props
 }: ThemedTextProps) {
+  // Add safety check for children
+  const safeChildren = children ?? "";
+
   return (
     <StyledText
       className={className}
@@ -25,7 +28,7 @@ export function ThemedText({
       numberOfLines={numberOfLines}
       {...props}
     >
-      {children}
+      {safeChildren}
     </StyledText>
   );
 }
