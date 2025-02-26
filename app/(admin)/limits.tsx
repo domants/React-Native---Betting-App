@@ -29,6 +29,53 @@ export default function LimitsScreen() {
           return;
         }
 
+        // First check if a limit already exists
+        const { data: existingL2Limit } = await supabase
+          .from("bet_limits")
+          .select("*")
+          .eq("bet_date", betDate.toISOString().split("T")[0])
+          .eq("game_title", "LAST TWO")
+          .eq("number", lastTwoNumber)
+          .single();
+
+        if (existingL2Limit) {
+          // If exists, show detailed info and ask user if they want to update
+          Alert.alert(
+            "Limit Already Exists",
+            `A limit for Last Two number ${lastTwoNumber} already exists:\n\n` +
+              `Current Limit: ₱${existingL2Limit.limit_amount.toLocaleString()}\n` +
+              `New Limit: ₱${parseFloat(lastTwoLimit).toLocaleString()}\n\n` +
+              `Would you like to update it?`,
+            [
+              {
+                text: "Cancel",
+                style: "cancel",
+              },
+              {
+                text: "Update",
+                onPress: async () => {
+                  const { error: updateError } = await supabase
+                    .from("bet_limits")
+                    .update({ limit_amount: parseFloat(lastTwoLimit) })
+                    .eq("id", existingL2Limit.id);
+
+                  if (updateError) throw updateError;
+                  setLastTwoNumber("");
+                  setLastTwoLimit("");
+                  Alert.alert(
+                    "Success",
+                    `Limit for Last Two number ${lastTwoNumber} updated to ₱${parseFloat(
+                      lastTwoLimit
+                    ).toLocaleString()}`
+                  );
+                },
+              },
+            ]
+          );
+          return;
+        }
+
+        // If no existing limit, insert new one
         const { error: l2Error } = await supabase.from("bet_limits").insert({
           bet_date: betDate.toISOString().split("T")[0],
           game_title: "LAST TWO",
@@ -46,6 +93,53 @@ export default function LimitsScreen() {
           return;
         }
 
+        // First check if a limit already exists
+        const { data: existingD3Limit } = await supabase
+          .from("bet_limits")
+          .select("*")
+          .eq("bet_date", betDate.toISOString().split("T")[0])
+          .eq("game_title", "SWERTRES")
+          .eq("number", swertresNumber)
+          .single();
+
+        if (existingD3Limit) {
+          // If exists, show detailed info and ask user if they want to update
+          Alert.alert(
+            "Limit Already Exists",
+            `A limit for Swertres number ${swertresNumber} already exists:\n\n` +
+              `Current Limit: ₱${existingD3Limit.limit_amount.toLocaleString()}\n` +
+              `New Limit: ₱${parseFloat(swertresLimit).toLocaleString()}\n\n` +
+              `Would you like to update it?`,
+            [
+              {
+                text: "Cancel",
+                style: "cancel",
+              },
+              {
+                text: "Update",
+                onPress: async () => {
+                  const { error: updateError } = await supabase
+                    .from("bet_limits")
+                    .update({ limit_amount: parseFloat(swertresLimit) })
+                    .eq("id", existingD3Limit.id);
+
+                  if (updateError) throw updateError;
+                  setSwertresNumber("");
+                  setSwertresLimit("");
+                  Alert.alert(
+                    "Success",
+                    `Limit for Swertres number ${swertresNumber} updated to ₱${parseFloat(
+                      swertresLimit
+                    ).toLocaleString()}`
+                  );
+                },
+              },
+            ]
+          );
+          return;
+        }
+
+        // If no existing limit, insert new one
         const { error: d3Error } = await supabase.from("bet_limits").insert({
           bet_date: betDate.toISOString().split("T")[0],
           game_title: "SWERTRES",
@@ -56,7 +150,7 @@ export default function LimitsScreen() {
         if (d3Error) throw d3Error;
       }
 
-      // Clear form
+      // Clear form only if both operations succeed
       setLastTwoNumber("");
       setLastTwoLimit("");
       setSwertresNumber("");
