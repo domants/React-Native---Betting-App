@@ -497,17 +497,33 @@ export default function DashboardScreen() {
         throw error;
       }
 
-      // Rest of your success handling code...
+      // Close the alert modal
       setAlertConfig((prev) => ({ ...prev, isVisible: false }));
+
+      // Reset all states
       setAllBets([]);
       setTotalBetValue(0);
+      setContactNumber("");
+
+      // Reset router params and force form reset
       router.setParams({
         totalBetValue: "0",
         betDetails: JSON.stringify([]),
-        shouldResetForm: "true",
+        shouldResetForm: "true", // This triggers form reset in new-bet screen
       });
 
-      Alert.alert("Success", "All bets have been submitted successfully");
+      // Show success message and ensure reset
+      Alert.alert("Success", "All bets have been submitted successfully", [
+        {
+          text: "OK",
+          onPress: () => {
+            // Double-check reset
+            setAllBets([]);
+            setTotalBetValue(0);
+            router.replace("/(tabs)/dashboard"); // Force a fresh dashboard state
+          },
+        },
+      ]);
     } catch (error) {
       console.error("Error submitting bets:", error);
       Alert.alert("Error", "Failed to submit bets. Please try again.");
