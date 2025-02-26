@@ -21,7 +21,7 @@ const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
 
 // Types and interfaces can stay outside
-type GameFilter = "all" | "l2" | "3d";
+type GameFilter = "all" | "LAST TWO" | "SWERTRES";
 
 interface Bet {
   id: string;
@@ -52,6 +52,7 @@ export default function DailyBetsScreen() {
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(today);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [activeGameFilter, setActiveGameFilter] = useState<GameFilter>("all");
 
   // Screen width for table columns
   const screenWidth = Dimensions.get("window").width;
@@ -78,8 +79,13 @@ export default function DailyBetsScreen() {
 
   if (isLoading) return <LoadingSpinner />;
 
-  const totalBets = betsData.length;
-  const totalAmount = betsData.reduce(
+  const filteredBets = betsData.filter((bet) => {
+    if (activeGameFilter === "all") return true;
+    return bet.game_title === activeGameFilter;
+  });
+
+  const totalBets = filteredBets.length;
+  const totalAmount = filteredBets.reduce(
     (sum, bet) => sum + Number(bet.amount),
     0
   );
@@ -92,7 +98,9 @@ export default function DailyBetsScreen() {
           <TouchableOpacity onPress={() => router.back()} className="mr-3">
             <MaterialIcons name="arrow-back" size={24} color="#000" />
           </TouchableOpacity>
-          <ThemedText className="text-2xl font-bold">Daily Bets</ThemedText>
+          <ThemedText className="text-2xl font-bold text-[#6F13F5]">
+            Daily Bets
+          </ThemedText>
         </StyledView>
 
         {/* Date Navigation */}
@@ -104,14 +112,14 @@ export default function DailyBetsScreen() {
               setSelectedDate(newDate);
             }}
           >
-            <MaterialIcons name="chevron-left" size={24} color="#000" />
+            <MaterialIcons name="chevron-left" size={24} color="#6F13F5" />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => setShowDatePicker(true)}
             className="flex-1 mx-4"
           >
-            <ThemedText className="text-center">
+            <ThemedText className="text-center text-[#6F13F5]">
               {selectedDate.toLocaleDateString("en-US", {
                 month: "long",
                 day: "numeric",
@@ -129,101 +137,128 @@ export default function DailyBetsScreen() {
               }
             }}
           >
-            <MaterialIcons name="chevron-right" size={24} color="#000" />
+            <MaterialIcons name="chevron-right" size={24} color="#6F13F5" />
           </TouchableOpacity>
         </StyledView>
 
-        {/* Stats Summary */}
+        {/* Stats Cards */}
         <StyledView className="flex-row mb-4 space-x-2">
           <StyledView className="flex-1 p-4 bg-white rounded-lg shadow">
             <ThemedText className="text-gray-600">Total Bets</ThemedText>
-            <ThemedText className="text-2xl font-bold">{totalBets}</ThemedText>
+            <ThemedText className="text-2xl font-bold text-[#6F13F5]">
+              {totalBets}
+            </ThemedText>
           </StyledView>
           <StyledView className="flex-1 p-4 bg-white rounded-lg shadow">
             <ThemedText className="text-gray-600">Total Amount</ThemedText>
-            <ThemedText className="text-2xl font-bold">
+            <ThemedText className="text-2xl font-bold text-[#6F13F5]">
               ₱{totalAmount.toLocaleString()}
             </ThemedText>
+          </StyledView>
+        </StyledView>
+
+        {/* Add Game Filter Tabs after Stats Cards */}
+        <StyledView className="px-4 mb-4">
+          <StyledView className="flex-row bg-gray-100 rounded-lg p-1">
+            {[
+              { id: "all", label: "All" },
+              { id: "LAST TWO", label: "Last Two" },
+              { id: "SWERTRES", label: "Swertres" },
+            ].map((filter) => (
+              <TouchableOpacity
+                key={filter.id}
+                onPress={() => setActiveGameFilter(filter.id as GameFilter)}
+                className={`flex-1 py-2 px-4 rounded-lg ${
+                  activeGameFilter === filter.id
+                    ? "bg-[#6F13F5]"
+                    : "bg-transparent"
+                }`}
+              >
+                <ThemedText
+                  className={`text-center text-sm font-medium ${
+                    activeGameFilter === filter.id
+                      ? "text-white"
+                      : "text-gray-600"
+                  }`}
+                >
+                  {filter.label}
+                </ThemedText>
+              </TouchableOpacity>
+            ))}
           </StyledView>
         </StyledView>
       </StyledView>
 
       {/* Table View */}
       <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        {betsData.length > 0 ? (
+        {filteredBets.length > 0 ? (
           <ThemedView className="bg-white rounded-lg shadow">
             <DataTable>
-              <DataTable.Header>
-                <DataTable.Title style={{ width: getColumnWidth(10) }}>
-                  <ThemedText className="font-semibold">Time</ThemedText>
+              <DataTable.Header style={{ backgroundColor: "#6F13F5" }}>
+                <DataTable.Title style={{ width: getColumnWidth(15) }}>
+                  <ThemedText className="font-semibold text-white">
+                    Time
+                  </ThemedText>
                 </DataTable.Title>
                 <DataTable.Title style={{ width: getColumnWidth(25) }}>
-                  <ThemedText className="font-semibold">User</ThemedText>
+                  <ThemedText className="font-semibold text-white">
+                    User
+                  </ThemedText>
                 </DataTable.Title>
-                <DataTable.Title style={{ width: getColumnWidth(45) }}>
-                  <ThemedText className="font-semibold">Combination</ThemedText>
+                <DataTable.Title style={{ width: getColumnWidth(30) }}>
+                  <ThemedText className="font-semibold text-white">
+                    Combination
+                  </ThemedText>
                 </DataTable.Title>
-                <DataTable.Title style={{ width: getColumnWidth(8) }}>
-                  <ThemedText className="font-semibold">Game</ThemedText>
+                <DataTable.Title style={{ width: getColumnWidth(15) }}>
+                  <ThemedText className="font-semibold text-white">
+                    Game
+                  </ThemedText>
                 </DataTable.Title>
-                <DataTable.Title numeric style={{ width: getColumnWidth(12) }}>
-                  <ThemedText className="font-semibold">Amount</ThemedText>
+                <DataTable.Title numeric style={{ width: getColumnWidth(15) }}>
+                  <ThemedText className="font-semibold text-white">
+                    Amount
+                  </ThemedText>
                 </DataTable.Title>
               </DataTable.Header>
 
-              {betsData.map((bet) => (
+              {filteredBets.map((bet) => (
                 <DataTable.Row key={bet.id}>
-                  <DataTable.Cell style={{ width: getColumnWidth(10) }}>
+                  <DataTable.Cell style={{ width: getColumnWidth(15) }}>
                     <ThemedText>{formatDrawTime(bet.draw_time)}</ThemedText>
                   </DataTable.Cell>
                   <DataTable.Cell style={{ width: getColumnWidth(25) }}>
-                    <ThemedText className="w-80">
+                    <ThemedText>
                       {bet.username || bet.user_id.slice(0, 8)}
                     </ThemedText>
                   </DataTable.Cell>
-                  <DataTable.Cell style={{ width: getColumnWidth(45) }}>
-                    <ThemedText>{bet.combination}</ThemedText>
+                  <DataTable.Cell style={{ width: getColumnWidth(30) }}>
+                    <ThemedText className="font-medium">
+                      {bet.combination}
+                    </ThemedText>
                   </DataTable.Cell>
-                  <DataTable.Cell style={{ width: getColumnWidth(8) }}>
+                  <DataTable.Cell style={{ width: getColumnWidth(15) }}>
                     <ThemedView className="bg-gray-100 px-2 py-1 rounded">
                       <ThemedText className="text-xs">
                         {bet.game_title === "LAST TWO" ? "L2" : "3D"}
                       </ThemedText>
                     </ThemedView>
                   </DataTable.Cell>
-                  <DataTable.Cell numeric style={{ width: getColumnWidth(12) }}>
-                    <ThemedText className="text-[#6F13F5] font-medium ">
+                  <DataTable.Cell numeric style={{ width: getColumnWidth(15) }}>
+                    <ThemedText className="text-[#6F13F5] font-medium">
                       ₱{Number(bet.amount).toLocaleString()}
                     </ThemedText>
                   </DataTable.Cell>
                 </DataTable.Row>
               ))}
-
-              {/* Table Footer */}
-              <DataTable.Row style={{ backgroundColor: "#F9FAFB" }}>
-                <DataTable.Cell style={{ width: getColumnWidth(10) }}>
-                  <ThemedText className="font-bold">Total</ThemedText>
-                </DataTable.Cell>
-                <DataTable.Cell style={{ width: getColumnWidth(25) }}>
-                  <ThemedText className="font-bold">
-                    {totalBets} bets
-                  </ThemedText>
-                </DataTable.Cell>
-                <DataTable.Cell style={{ width: getColumnWidth(53) }}>
-                  <ThemedText>{""}</ThemedText>
-                </DataTable.Cell>
-                <DataTable.Cell numeric style={{ width: getColumnWidth(12) }}>
-                  <ThemedText className="text-[#6F13F5] font-bold">
-                    ₱{totalAmount.toLocaleString()}
-                  </ThemedText>
-                </DataTable.Cell>
-              </DataTable.Row>
             </DataTable>
           </ThemedView>
         ) : (
           <StyledView className="bg-white p-8 rounded-lg shadow mb-3 items-center">
             <ThemedText className="text-gray-500 text-lg">
-              No bet(s) for{" "}
+              No{" "}
+              {activeGameFilter === "all" ? "" : activeGameFilter.toLowerCase()}{" "}
+              bet(s) for{" "}
               {selectedDate.toLocaleDateString("en-US", {
                 month: "long",
                 day: "numeric",

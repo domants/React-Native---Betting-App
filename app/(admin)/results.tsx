@@ -12,6 +12,9 @@ import { supabase } from "@/lib/supabase";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 import { ThemedText } from "@/components/ThemedText";
+import { DataTable } from "react-native-paper";
+
+import Feather from "@expo/vector-icons/Feather";
 
 const StyledView = styled(View);
 const StyledSafeAreaView = styled(SafeAreaView);
@@ -99,6 +102,8 @@ export default function ResultsScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddDatePicker, setShowAddDatePicker] = useState(false);
+  const [latestL2Result, setLatestL2Result] = useState<string | null>(null);
+  const [latestD3Result, setLatestD3Result] = useState<string | null>(null);
 
   const timeOptions = [
     { label: "All", value: "" },
@@ -142,6 +147,8 @@ export default function ResultsScreen() {
 
       if (error) throw error;
       setResults(data || []);
+      setLatestL2Result(data?.length > 0 ? data[0].l2_result : null);
+      setLatestD3Result(data?.length > 0 ? data[0].d3_result : null);
     } catch (error) {
       console.error("Error fetching results:", error);
       Alert.alert("Error", "Failed to fetch results");
@@ -171,6 +178,8 @@ export default function ResultsScreen() {
 
       console.log("Fetched results after clear:", data);
       setResults(data || []);
+      setLatestL2Result(data?.length > 0 ? data[0].l2_result : null);
+      setLatestD3Result(data?.length > 0 ? data[0].d3_result : null);
     } catch (error) {
       console.error("Error:", error);
       Alert.alert("Error", "An unexpected error occurred");
@@ -334,8 +343,8 @@ export default function ResultsScreen() {
 
   const handleDeleteResult = async (resultId: string) => {
     Alert.alert(
-      "Delete Result",
       "Are you sure you want to delete this result?",
+      "This action cannot be undone. This will permanently delete the draw result.",
       [
         {
           text: "Cancel",
@@ -424,137 +433,155 @@ export default function ResultsScreen() {
 
   return (
     <StyledSafeAreaView className="flex-1 bg-[#FDFDFD]">
-      <ScrollView
-        ref={scrollViewRef}
-        className="flex-1"
-        onTouchStart={() => {
-          // @ts-ignore
-          TextInput.State?.blur?.();
-        }}
-      >
-        <StyledView className="p-4">
-          {/* Header */}
-          <StyledView className="flex-row items-center justify-between mb-6">
-            <StyledView className="flex-row items-center">
-              <TouchableOpacity onPress={() => router.back()} className="mr-3">
-                <MaterialIcons name="arrow-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <ThemedText className="text-2xl font-bold">
-                Add Draw Results
-              </ThemedText>
-            </StyledView>
-            <TouchableOpacity
-              className="bg-black px-4 py-2 rounded-lg"
-              onPress={() => setIsModalVisible(true)}
-            >
-              <ThemedText className="text-white">Add Result</ThemedText>
+      {/* Header Section */}
+      <StyledView className="p-4">
+        <StyledView className="flex-row items-center justify-between mb-6">
+          <StyledView className="flex-row items-center">
+            <TouchableOpacity onPress={() => router.back()} className="mr-3">
+              <MaterialIcons name="arrow-back" size={24} color="#000" />
             </TouchableOpacity>
-          </StyledView>
-
-          {/* Draw Results History with Filters */}
-          <StyledView className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-            <ThemedText className="text-xl font-bold mb-4">
-              Draw Results History
+            <ThemedText className="text-2xl font-bold text-[#6F13F5]">
+              Draw Results
             </ThemedText>
+          </StyledView>
+          <TouchableOpacity
+            className="bg-[#6F13F5] px-4 py-2 rounded-lg"
+            onPress={() => setIsModalVisible(true)}
+          >
+            <ThemedText className="text-white">Add Result</ThemedText>
+          </TouchableOpacity>
+        </StyledView>
 
-            {/* Filters in center */}
-            <StyledView className="space-y-4">
-              <StyledView className="flex-row justify-center items-center space-x-4 mb-6 border-b border-gray-200 pb-4">
-                <TouchableOpacity
-                  className="flex-1 flex-row justify-center items-center space-x-2 bg-gray-100 py-2 rounded-lg"
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <MaterialIcons name="calendar-today" size={20} color="#000" />
-                  <ThemedText>{filterDate || "Pick a date"}</ThemedText>
-                </TouchableOpacity>
-                <Dropdown
-                  data={timeOptions}
-                  labelField="label"
-                  valueField="label"
-                  placeholder="All"
-                  value={filterTime}
-                  onChange={handleTimeFilter}
-                  style={{
-                    flex: 1,
-                    height: 36,
-                    borderColor: "#E5E7EB",
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    paddingHorizontal: 8,
-                    backgroundColor: "#F3F4F6",
-                  }}
-                />
-              </StyledView>
+        {/* Date Navigation */}
+        <StyledView className="flex-row items-center justify-between bg-white rounded-lg p-3 mb-4">
+          <TouchableOpacity
+            onPress={() => {
+              const newDate = new Date(filterMonth || new Date());
+              newDate.setDate(newDate.getDate() - 1);
+              setFilterMonth(newDate);
+              setFilterDate(
+                newDate.toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              );
+            }}
+          >
+            <MaterialIcons name="chevron-left" size={24} color="#6F13F5" />
+          </TouchableOpacity>
 
-              {/* Add Clear Filters button */}
-              {(filterMonth || filterTime) && (
-                <TouchableOpacity
-                  className="flex-row justify-center items-center bg-gray-200 py-2 rounded-lg mb-4"
-                  onPress={handleClearFilters}
-                >
-                  <MaterialIcons
-                    name="clear"
-                    size={20}
-                    color="#000"
-                    className="mr-2"
-                  />
-                  <ThemedText>Clear Filters</ThemedText>
-                </TouchableOpacity>
-              )}
-            </StyledView>
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            className="flex-1 mx-4"
+          >
+            <ThemedText className="text-center text-[#6F13F5]">
+              {filterDate || "Select Date"}
+            </ThemedText>
+          </TouchableOpacity>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={filterMonth || new Date()}
-                mode="date"
-                display="default"
-                onChange={handleMonthChange}
-              />
-            )}
+          <TouchableOpacity
+            onPress={() => {
+              const newDate = new Date(filterMonth || new Date());
+              if (newDate < today) {
+                newDate.setDate(newDate.getDate() + 1);
+                setFilterMonth(newDate);
+                setFilterDate(
+                  newDate.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                );
+              }
+            }}
+          >
+            <MaterialIcons name="chevron-right" size={24} color="#6F13F5" />
+          </TouchableOpacity>
+        </StyledView>
 
-            {/* Results List with Cards */}
-            <StyledView className="space-y-4">
-              {filteredResults.length === 0 ? (
-                <ThemedText className="text-gray-500 text-center py-2">
-                  No results found for this date
-                </ThemedText>
-              ) : (
-                filteredResults.map((result) => (
-                  <StyledView
-                    key={result.id}
-                    className="flex-row justify-between items-center bg-gray-50 p-4 rounded-lg border border-gray-100"
-                  >
-                    <StyledView className="space-y-2">
-                      <ThemedText className="text-lg font-bold">
-                        {formatDate(new Date(result.draw_date))}
-                      </ThemedText>
-                      <ThemedText className="text-gray-500">
-                        Time: {formatTimeTo12Hour(result.draw_time)}
-                      </ThemedText>
-                      <ThemedText>L2: {result.l2_result}</ThemedText>
-                      <ThemedText>3D: {result.d3_result}</ThemedText>
-                    </StyledView>
-                    {user?.role === "Admin" && (
-                      <StyledView className="flex-row items-center space-x-3">
-                        <TouchableOpacity
-                          onPress={() => handleEditResult(result.id)}
-                        >
-                          <MaterialIcons name="edit" size={24} color="blue" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleDeleteResult(result.id)}
-                        >
-                          <MaterialIcons name="delete" size={24} color="red" />
-                        </TouchableOpacity>
-                      </StyledView>
-                    )}
-                  </StyledView>
-                ))
-              )}
-            </StyledView>
+        {/* Latest Results Cards */}
+        <StyledView className="flex-row mb-4 space-x-2">
+          <StyledView className="flex-1 p-4 bg-white rounded-lg shadow">
+            <ThemedText className="text-gray-600 mb-1">
+              Latest L2 Result
+            </ThemedText>
+            <ThemedText className="text-4xl font-bold text-[#6F13F5]">
+              {latestL2Result || "--"}
+            </ThemedText>
+          </StyledView>
+          <StyledView className="flex-1 p-4 bg-white rounded-lg shadow">
+            <ThemedText className="text-gray-600 mb-1">
+              Latest 3D Result
+            </ThemedText>
+            <ThemedText className="text-4xl font-bold text-[#6F13F5]">
+              {latestD3Result || "---"}
+            </ThemedText>
           </StyledView>
         </StyledView>
-      </ScrollView>
+
+        {/* Results Table */}
+        <StyledView className="flex-1 bg-white rounded-lg shadow">
+          <DataTable>
+            <DataTable.Header style={{ backgroundColor: "#6F13F5" }}>
+              <DataTable.Title style={{ flex: 1 }}>
+                <ThemedText className="font-semibold text-white">
+                  Time
+                </ThemedText>
+              </DataTable.Title>
+              <DataTable.Title style={{ flex: 1 }}>
+                <ThemedText className="font-semibold text-white">
+                  L2 Result
+                </ThemedText>
+              </DataTable.Title>
+              <DataTable.Title style={{ flex: 1 }}>
+                <ThemedText className="font-semibold text-white">
+                  3D Result
+                </ThemedText>
+              </DataTable.Title>
+              <DataTable.Title style={{ flex: 1 }}>
+                <ThemedText className="font-semibold text-white">
+                  Actions
+                </ThemedText>
+              </DataTable.Title>
+            </DataTable.Header>
+
+            {filteredResults.map((result) => (
+              <DataTable.Row key={result.id}>
+                <DataTable.Cell style={{ flex: 1 }}>
+                  <ThemedText>
+                    {formatTimeTo12Hour(result.draw_time)}
+                  </ThemedText>
+                </DataTable.Cell>
+                <DataTable.Cell style={{ flex: 1 }}>
+                  <ThemedText className="text-[#6F13F5] font-medium">
+                    {result.l2_result}
+                  </ThemedText>
+                </DataTable.Cell>
+                <DataTable.Cell style={{ flex: 1 }}>
+                  <ThemedText className="text-[#6F13F5] font-medium">
+                    {result.d3_result}
+                  </ThemedText>
+                </DataTable.Cell>
+                <DataTable.Cell style={{ flex: 1 }}>
+                  <StyledView className="flex-row space-x-2">
+                    <TouchableOpacity
+                      onPress={() => handleEditResult(result.id)}
+                    >
+                      <Feather name="edit" size={20} color="#6F13F5" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteResult(result.id)}
+                    >
+                      <MaterialIcons name="delete" size={20} color="#EF4040" />
+                    </TouchableOpacity>
+                  </StyledView>
+                </DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable>
+        </StyledView>
+      </StyledView>
 
       {/* Add/Edit Result Modal */}
       <Modal
@@ -567,11 +594,11 @@ export default function ResultsScreen() {
         <StyledView className="flex-1 bg-black/50 justify-center">
           <StyledView className="bg-white mx-4 rounded-xl p-4">
             <StyledView className="flex-row justify-between items-center mb-4">
-              <ThemedText className="text-xl font-bold">
-                Add Draw Result
+              <ThemedText className="text-xl font-bold text-[#6F13F5]">
+                Edit Draw Result
               </ThemedText>
               <TouchableOpacity onPress={handleCloseModal}>
-                <MaterialIcons name="close" size={24} color="#000" />
+                <MaterialIcons name="close" size={24} color="#6F13F5" />
               </TouchableOpacity>
             </StyledView>
 
@@ -579,7 +606,7 @@ export default function ResultsScreen() {
               <StyledView className="space-y-4">
                 {/* Draw Schedule Section */}
                 <StyledView className="space-y-4">
-                  <ThemedText className="text-lg font-bold">
+                  <ThemedText className="text-lg font-bold text-[#58508D]">
                     Draw Schedule
                   </ThemedText>
                   <StyledView>
@@ -596,7 +623,7 @@ export default function ResultsScreen() {
                       <MaterialIcons
                         name="calendar-today"
                         size={20}
-                        color="#000"
+                        color="#6F13F5"
                       />
                     </TouchableOpacity>
                   </StyledView>
@@ -636,7 +663,7 @@ export default function ResultsScreen() {
 
                 {/* Enter Results Section */}
                 <StyledView className="space-y-4">
-                  <ThemedText className="text-lg font-bold">
+                  <ThemedText className="text-lg font-bold text-[#58508D]">
                     Enter Results
                   </ThemedText>
                   <StyledView>
@@ -671,27 +698,68 @@ export default function ResultsScreen() {
 
                 {/* Summary Section */}
                 <StyledView className="space-y-2">
-                  <ThemedText className="text-lg font-bold">Summary</ThemedText>
-                  <ThemedText>
-                    Date/Time:{" "}
-                    {selectedSchedule
-                      ? `${formatDate(new Date(selectedSchedule))}, ${
-                          timeSchedules.find((t) => t.value === selectedTime)
-                            ?.label || ""
-                        }`
-                      : "Not selected"}
+                  <ThemedText className="text-lg font-bold text-[#58508D]">
+                    Summary
                   </ThemedText>
-                  <ThemedText>
-                    L2 Result: {l2Result || "Not entered"}
-                  </ThemedText>
-                  <ThemedText>
-                    3D Result: {d3Result || "Not entered"}
-                  </ThemedText>
+
+                  <StyledView className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                    <StyledView className="space-y-3">
+                      {/* Date/Time Card */}
+                      <StyledView className="flex-row justify-between items-center">
+                        <ThemedText className="text-gray-600">
+                          Date - Time
+                        </ThemedText>
+                        <ThemedText className="font-medium text-[#6F13F5]">
+                          {selectedSchedule
+                            ? `${formatDate(new Date(selectedSchedule))}, ${
+                                timeSchedules.find(
+                                  (t) => t.value === selectedTime
+                                )?.label || ""
+                              }`
+                            : "Not selected"}
+                        </ThemedText>
+                      </StyledView>
+
+                      {/* Divider */}
+                      <StyledView className="h-[1px] bg-gray-200" />
+
+                      {/* L2 Result Card */}
+                      <StyledView className="flex-row justify-between items-center">
+                        <ThemedText className="text-gray-600">
+                          L2 Result
+                        </ThemedText>
+                        <ThemedText
+                          className={`font-medium ${
+                            l2Result ? "text-[#6F13F5]" : "text-gray-400"
+                          }`}
+                        >
+                          {l2Result || "Not entered"}
+                        </ThemedText>
+                      </StyledView>
+
+                      {/* Divider */}
+                      <StyledView className="h-[1px] bg-gray-200" />
+
+                      {/* 3D Result Card */}
+                      <StyledView className="flex-row justify-between items-center">
+                        <ThemedText className="text-gray-600">
+                          3D Result
+                        </ThemedText>
+                        <ThemedText
+                          className={`font-medium ${
+                            d3Result ? "text-[#6F13F5]" : "text-gray-400"
+                          }`}
+                        >
+                          {d3Result || "Not entered"}
+                        </ThemedText>
+                      </StyledView>
+                    </StyledView>
+                  </StyledView>
                 </StyledView>
 
                 {/* Save Button */}
                 <TouchableOpacity
-                  className="bg-black py-3 rounded-lg mt-4"
+                  className="bg-[#6F13F5] py-3 rounded-lg mt-4"
                   onPress={handleSaveResults}
                 >
                   <ThemedText className="text-white text-center font-semibold">
