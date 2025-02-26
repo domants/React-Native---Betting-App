@@ -438,7 +438,7 @@ export default function ResultsScreen() {
         <StyledView className="flex-row items-center justify-between mb-6">
           <StyledView className="flex-row items-center">
             <TouchableOpacity onPress={() => router.back()} className="mr-3">
-              <MaterialIcons name="arrow-back" size={24} color="#000" />
+              <MaterialIcons name="arrow-back" size={24} color="#6F13F5" />
             </TouchableOpacity>
             <ThemedText className="text-2xl font-bold text-[#6F13F5]">
               Draw Results

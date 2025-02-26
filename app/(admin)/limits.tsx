@@ -74,9 +74,11 @@ export default function LimitsScreen() {
       <StyledView className="flex-1 p-4">
         <StyledView className="flex-row items-center mb-6">
           <TouchableOpacity onPress={() => router.back()} className="mr-3">
-            <MaterialIcons name="arrow-back" size={24} color="#000" />
+            <MaterialIcons name="arrow-back" size={24} color="#6F13F5" />
           </TouchableOpacity>
-          <ThemedText className="text-2xl font-bold">Set Bet Limits</ThemedText>
+          <ThemedText className="text-2xl font-bold text-[#6F13F5]">
+            Set Bet Limits
+          </ThemedText>
         </StyledView>
 
         <StyledView className="space-y-4">
